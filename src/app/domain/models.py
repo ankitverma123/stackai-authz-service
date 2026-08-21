@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
+from authz_core import Action
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -136,3 +137,26 @@ class ApiKeyRead(BaseModel):
     expires_at: datetime | None
     revoked_at: datetime | None
     last_used_at: datetime | None
+
+
+class ExplainRequest(BaseModel):
+    """The (action, resource) pair to run through the real engine for debugging.
+
+    `resource_type` is restricted to the three types deps.VISIBILITY_ACTION knows
+    how to check visibility for — the same set every other guarded route resolves
+    against."""
+
+    action: Action
+    resource_type: Literal["Workflow", "Team", "Organization"]
+    resource_id: UUID
+
+
+class ExplainResponse(BaseModel):
+    """The only response in this service that carries `policy_id` — see
+    app/api/errors.py's module docstring for why that disclosure is scoped to
+    this authenticated, explicitly-requested endpoint."""
+
+    decision: Literal["Allow", "Deny"]
+    policy_id: str | None
+    principal_capabilities: list[str]
+    resource_attributes: dict[str, Any]
