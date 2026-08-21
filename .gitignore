@@ -1,7 +1,7 @@
 # ── Internal working material — stays local, never shipped ──────────────
 interviewAssignment.md
 jobdescription.md
-docs/
+docs/superpowers/
 
 # ── Agent tooling — unrelated to the deliverable ────────────────────────
 .claude/

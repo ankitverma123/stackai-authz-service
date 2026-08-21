@@ -92,7 +92,13 @@ class PolicyEngine:
         if result.diagnostics.errors:
             return EngineError("; ".join(str(e) for e in result.diagnostics.errors))
 
-        reasons = result.diagnostics.reasons
+        # cedarpy returns `reasons` from a Rust HashSet, whose iteration order is
+        # randomized per process — when two or more policies produce the same
+        # verdict (e.g. two forbids both matching), `reasons[0]` would report a
+        # different "deciding" policy_id on every restart. Sorted for a stable
+        # tie-break: the audit log and /v1/authz/explain must report the same
+        # policy_id for the same decision, run to run.
+        reasons = sorted(result.diagnostics.reasons)
         annotations = result.diagnostics.id_annotations_by_reason
         policy_id = annotations.get(reasons[0]) if reasons else None
 
