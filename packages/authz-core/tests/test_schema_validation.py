@@ -8,6 +8,9 @@ from cedarpy import validate_policies
 def test_schema_declares_context_on_every_action() -> None:
     """A policy reading context.* fails validation unless every action declares a context."""
     for name, spec in CEDAR_SCHEMA[""]["actions"].items():
+        # Skip action groups, which are container actions without appliesTo
+        if "appliesTo" not in spec:
+            continue
         assert "context" in spec["appliesTo"], f"action {name} declares no context shape"
 
 

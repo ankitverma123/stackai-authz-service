@@ -4,7 +4,7 @@ reading context.* fails validate_policies()."""
 from pathlib import Path
 from typing import Any, Final
 
-from authz_core.actions import Action
+from authz_core.actions import GOVERNANCE_ACTIONS, ORG_ADMINISTRABLE_ACTIONS, Action
 from authz_core.capabilities import Capability
 
 _CAP = {"type": "Entity", "name": "Cap"}
@@ -71,6 +71,28 @@ _RESOURCE_TYPES: Final[dict[Action, list[str]]] = {
     Action.WORKFLOW_CREATE: ["Team"],
 }
 
+
+def _build_actions() -> dict[str, Any]:
+    actions: dict[str, Any] = {
+        action.value: {
+            "appliesTo": {
+                "principalTypes": ["User"],
+                "resourceTypes": _RESOURCE_TYPES.get(action, ["Workflow"]),
+                "context": _CONTEXT,
+            }
+        }
+        for action in Action
+    }
+    # Groups are parentless container actions; members point at them.
+    actions["Governance"] = {}
+    actions["OrgAdministrable"] = {}
+    for action in GOVERNANCE_ACTIONS:
+        actions[action.value]["memberOf"] = [{"id": "Governance"}]
+    for action in ORG_ADMINISTRABLE_ACTIONS:
+        actions[action.value].setdefault("memberOf", []).append({"id": "OrgAdministrable"})
+    return actions
+
+
 CEDAR_SCHEMA: Final[dict[str, Any]] = {
     "": {
         "entityTypes": {
@@ -83,16 +105,7 @@ CEDAR_SCHEMA: Final[dict[str, Any]] = {
             "User": {"memberOfTypes": ["Cap", "Organization"]},
             "Workflow": {"shape": {"type": "Record", "attributes": _WORKFLOW_ATTRS}},
         },
-        "actions": {
-            action.value: {
-                "appliesTo": {
-                    "principalTypes": ["User"],
-                    "resourceTypes": _RESOURCE_TYPES.get(action, ["Workflow"]),
-                    "context": _CONTEXT,
-                }
-            }
-            for action in Action
-        },
+        "actions": _build_actions(),
     }
 }
 
