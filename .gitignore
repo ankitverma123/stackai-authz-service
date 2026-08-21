@@ -1,0 +1,43 @@
+# ── Internal working material — stays local, never shipped ──────────────
+interviewAssignment.md
+jobdescription.md
+docs/
+
+# ── Agent tooling — unrelated to the deliverable ────────────────────────
+.claude/
+.agents/
+CLAUDE.md
+skills-lock.json
+
+# ── Secrets — never commit ──────────────────────────────────────────────
+supabase_credentials.txt
+*credentials*
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ── Python ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.v/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ── Supabase ────────────────────────────────────────────────────────────
+supabase/.branches/
+supabase/.temp/
+
+# ── Editors / OS ────────────────────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/
