@@ -6,13 +6,15 @@ spike: a Workflow with no `exported` attribute returned Allow on
 WorkflowRunExported. D6 exists to make that impossible.
 """
 
+from typing import Any
+
 from authz_core.decision import Allow, EngineError
 from authz_core.engine import AuthzContext, PolicyEngine
 
 
 def test_missing_attribute_yields_engine_error_not_allow() -> None:
     engine = PolicyEngine()
-    entities = [
+    entities: list[dict[str, Any]] = [
         {"uid": {"type": "User", "id": "anon"}, "attrs": {}, "parents": []},
         # `exported` deliberately absent — simulates a missing workflow_exports row
         {"uid": {"type": "Workflow", "id": "wf-1"}, "attrs": {}, "parents": []},
@@ -32,7 +34,7 @@ def test_missing_attribute_yields_engine_error_not_allow() -> None:
 def test_clean_deny_is_not_an_engine_error() -> None:
     """A legitimate denial must stay a Deny — D6 must not turn every 403 into a 500."""
     engine = PolicyEngine()
-    entities = [
+    entities: list[dict[str, Any]] = [
         {"uid": {"type": "User", "id": "anon"}, "attrs": {}, "parents": []},
         {
             "uid": {"type": "Workflow", "id": "wf-1"},

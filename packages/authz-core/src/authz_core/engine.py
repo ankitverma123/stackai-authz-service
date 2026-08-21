@@ -4,7 +4,12 @@ from typing import Any
 
 from cedarpy import is_authorized
 
-from authz_core.actions import ACTION_SCOPES, Action
+from authz_core.actions import (
+    ACTION_SCOPES,
+    GOVERNANCE_ACTIONS,
+    ORG_ADMINISTRABLE_ACTIONS,
+    Action,
+)
 from authz_core.decision import Allow, Decision, Deny, EngineError
 from authz_core.entities import EntityRef, EntitySlice
 from authz_core.schema import CEDAR_SCHEMA, load_policies
@@ -34,6 +39,27 @@ class AuthzContext:
         return ctx
 
 
+def _build_action_entities() -> list[dict[str, Any]]:
+    """Build Cedar entities for action groups. Cedar evaluates group membership
+    only through entity hierarchy — it cannot inspect the schema. These entities
+    provide the group declarations that policies reference."""
+    ents: list[dict[str, Any]] = [
+        {"uid": {"type": "Action", "id": "Governance"}, "attrs": {}, "parents": []},
+        {"uid": {"type": "Action", "id": "OrgAdministrable"}, "attrs": {}, "parents": []},
+    ]
+    for a in Action:
+        parents: list[dict[str, str]] = []
+        if a in GOVERNANCE_ACTIONS:
+            parents.append({"type": "Action", "id": "Governance"})
+        if a in ORG_ADMINISTRABLE_ACTIONS:
+            parents.append({"type": "Action", "id": "OrgAdministrable"})
+        ents.append({"uid": {"type": "Action", "id": a.value}, "attrs": {}, "parents": parents})
+    return ents
+
+
+_ACTION_ENTITIES: list[dict[str, Any]] = _build_action_entities()
+
+
 class PolicyEngine:
     """Wraps cedarpy. The wrapper exists so that D6 is enforced in exactly one place."""
 
@@ -59,7 +85,7 @@ class PolicyEngine:
                 "context": context.to_cedar(cedar_action),
             },
             self._policies,
-            entities,
+            _ACTION_ENTITIES + entities,
         )
 
         # D6 — checked BEFORE the verdict. An Allow with errors is the dangerous case.

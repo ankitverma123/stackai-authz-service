@@ -170,7 +170,9 @@ def test_api_key_is_weaker_than_the_session(
         action=action,
         resource=resource,
         slice_=slice_,
-        context=AuthzContext(auth_method="api_key", api_key_scopes=scopes),
+        context=AuthzContext(
+            auth_method="api_key", api_key_scopes=scopes, api_key_org_id="org-1"
+        ),
     )
     assert not isinstance(decision, EngineError), decision
     assert decision.allowed is expected, why
