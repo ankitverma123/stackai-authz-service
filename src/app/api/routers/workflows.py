@@ -128,7 +128,8 @@ async def list_workflows(
     # unpredictable size and a client could not tell "end of results" from "this
     # page was mostly denied". Over-fetch, authorize, then take `limit` survivors.
     survivors: list[Row] = []
-    next_cursor = cursor
+    fetch_cursor = cursor
+    last_fetched_id: str | None = None
     exhausted = False
     rounds = 0
 
@@ -142,7 +143,7 @@ async def list_workflows(
             client.table("workflows")
             .select("*, workflow_exports(*)")
             .or_(spec.to_postgrest_or())
-            .gt("id", next_cursor or "")
+            .gt("id", fetch_cursor or "")
             .order("id")
             .limit(limit * OVERFETCH_FACTOR)
             .execute()
@@ -157,7 +158,7 @@ async def list_workflows(
         decisions = engine.authorize_batch(     # authoritative — the filter is not
             principal=principal.ref,
             action=Action.WORKFLOW_VIEW,        # each ROW is a view; the endpoint
-            resources=refs,                     # itself is guarded by WORKFLOW_LIST
+            resources=refs,                     # itself is guarded by requires_authenticated()
             slice_=slice_,
             context=build_context(request, principal),
         )
@@ -168,15 +169,31 @@ async def list_workflows(
         survivors.extend(
             row for row, d in zip(rows, decisions, strict=True) if d.allowed
         )
-        next_cursor = rows[-1]["id"]
+        last_fetched_id = rows[-1]["id"]
+        fetch_cursor = last_fetched_id
         exhausted = len(rows) < limit * OVERFETCH_FACTOR
 
     page = survivors[:limit]
+    if len(survivors) > limit:
+        # More authorized rows were fetched than fit on this page: resume from the
+        # last RETURNED row so the truncated extras (which sort after it) are
+        # re-included on the next page.
+        next_page_cursor = page[-1]["id"]
+    elif exhausted:
+        # Genuine end of results: rows ran out while scanning, not just while
+        # collecting survivors.
+        next_page_cursor = None
+    else:
+        # The round cap was hit (or the last round landed exactly on `limit`)
+        # before the table was exhausted. Every fetched survivor was already
+        # returned, so an empty-but-not-exhausted page must still carry a LIVE
+        # cursor — resuming at the furthest id we SCANNED, not just the furthest
+        # one we returned, or the client can't tell "denied so far" from "the end".
+        next_page_cursor = last_fetched_id
+
     return WorkflowPage(
         items=[WorkflowRead.model_validate(r) for r in page],
-        # Cursor is the last RETURNED row, not the last fetched — otherwise the
-        # next page would skip the survivors we over-fetched but did not return.
-        next_cursor=(page[-1]["id"] if page and not exhausted else None),
+        next_cursor=next_page_cursor,
     )
 
 
