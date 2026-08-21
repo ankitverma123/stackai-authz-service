@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -52,3 +53,43 @@ class WorkflowPage(BaseModel):
 
     items: list[WorkflowRead]
     next_cursor: str | None = None
+
+
+class WorkflowCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class WorkflowUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class WorkflowExecutionRead(BaseModel):
+    """Canned — there is no executions table (spec §12 scopes real execution out
+    of this service). Proves the WORKFLOW_RUN guard without inventing storage."""
+
+    id: UUID
+    workflow_id: UUID
+    status: Literal["queued"]
+    started_at: datetime
+
+
+class WorkflowExportUpdate(BaseModel):
+    visibility: Literal["public", "org_only"] = "public"
+
+
+class WorkflowExportRead(BaseModel):
+    workflow_id: UUID
+    is_exported: bool
+    visibility: Literal["public", "org_only"]
+    password_protected: bool
+
+
+class WorkflowExportProtectionUpdate(BaseModel):
+    """A null/absent password clears protection rather than setting one."""
+
+    password: str | None = None
+
+
+class WorkflowExportProtectionRead(BaseModel):
+    workflow_id: UUID
+    password_protected: bool
