@@ -23,21 +23,13 @@ from app.domain.models import (
     TeamRead,
 )
 from app.infra.client import get_supabase
+from app.infra.lookups import team_org_id as _team_org_id
 from app.invariants.sqlstate import raise_for_postgrest_error
 from supabase import Client
 
 router = APIRouter(prefix="/v1", tags=["teams"])
 
 Row = dict[str, Any]
-
-
-def _team_org_id(client: Client, team_id: UUID) -> str:
-    """The guard has already confirmed team_id is visible, so exactly one row
-    exists here — safe to use .single() rather than handling zero/many."""
-    row = cast(
-        Row, client.table("teams").select("org_id").eq("id", str(team_id)).single().execute().data
-    )
-    return str(row["org_id"])
 
 
 def _resolve_team_role_id(client: Client, *, org_id: str, name: str) -> str:

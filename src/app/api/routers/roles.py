@@ -62,9 +62,9 @@ async def create_role(
         .execute()
         .data[0],
     )
-    client.table("role_capabilities").insert([
-        {"role_id": row["id"], "capability": capability} for capability in body.capabilities
-    ]).execute()
+    client.table("role_capabilities").insert(
+        [{"role_id": row["id"], "capability": capability} for capability in body.capabilities]
+    ).execute()
     return RoleRead(
         id=row["id"],
         org_id=row["org_id"],

@@ -1,4 +1,3 @@
-import json
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -12,7 +11,7 @@ from authz_core.actions import (
 )
 from authz_core.decision import Allow, Decision, Deny, EngineError
 from authz_core.entities import EntityRef, EntitySlice
-from authz_core.schema import CEDAR_SCHEMA, load_policies
+from authz_core.schema import load_policies
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,9 +32,7 @@ class AuthzContext:
         if self.api_key_org_id is not None:
             # Entity-valued so it compares directly against resource.org, which all
             # three resource types declare. Absent => api-key-single-org denies.
-            ctx["api_key_org"] = {
-                "__entity": {"type": "Organization", "id": self.api_key_org_id}
-            }
+            ctx["api_key_org"] = {"__entity": {"type": "Organization", "id": self.api_key_org_id}}
         return ctx
 
 
@@ -65,7 +62,6 @@ class PolicyEngine:
 
     def __init__(self, policies: str | None = None) -> None:
         self._policies = policies if policies is not None else load_policies()
-        self._schema = json.dumps(CEDAR_SCHEMA)
 
     def authorize_raw(
         self,

@@ -32,34 +32,54 @@ class FakeRepo:
 
 async def test_revoked_key_fails_closed() -> None:
     full, prefix, hashed = mint_api_key()
-    repo = FakeRepo({
-        "id": "k1", "user_id": "u1", "org_id": "o1", "prefix": prefix,
-        "key_hash": hashed, "revoked_at": "2026-01-01T00:00:00Z",
-        "expires_at": None, "api_key_grants": [{"scope": "workflow:run"}],
-    })
+    repo = FakeRepo(
+        {
+            "id": "k1",
+            "user_id": "u1",
+            "org_id": "o1",
+            "prefix": prefix,
+            "key_hash": hashed,
+            "revoked_at": "2026-01-01T00:00:00Z",
+            "expires_at": None,
+            "api_key_grants": [{"scope": "workflow:run"}],
+        }
+    )
     auth = ApiKeyAuthenticator(repo)
     assert await auth.authenticate({"x-api-key": full}) is None
 
 
 async def test_expired_key_fails_closed() -> None:
     full, prefix, hashed = mint_api_key()
-    repo = FakeRepo({
-        "id": "k1", "user_id": "u1", "org_id": "o1", "prefix": prefix,
-        "key_hash": hashed, "revoked_at": None,
-        "expires_at": "2020-01-01T00:00:00Z",
-        "api_key_grants": [{"scope": "workflow:run"}],
-    })
+    repo = FakeRepo(
+        {
+            "id": "k1",
+            "user_id": "u1",
+            "org_id": "o1",
+            "prefix": prefix,
+            "key_hash": hashed,
+            "revoked_at": None,
+            "expires_at": "2020-01-01T00:00:00Z",
+            "api_key_grants": [{"scope": "workflow:run"}],
+        }
+    )
     auth = ApiKeyAuthenticator(repo)
     assert await auth.authenticate({"x-api-key": full}) is None
 
 
 async def test_valid_key_yields_principal_carrying_its_scopes() -> None:
     full, prefix, hashed = mint_api_key()
-    repo = FakeRepo({
-        "id": "k1", "user_id": "u1", "org_id": "o1", "prefix": prefix,
-        "key_hash": hashed, "revoked_at": None, "expires_at": None,
-        "api_key_grants": [{"scope": "workflow:run"}],
-    })
+    repo = FakeRepo(
+        {
+            "id": "k1",
+            "user_id": "u1",
+            "org_id": "o1",
+            "prefix": prefix,
+            "key_hash": hashed,
+            "revoked_at": None,
+            "expires_at": None,
+            "api_key_grants": [{"scope": "workflow:run"}],
+        }
+    )
     principal = await ApiKeyAuthenticator(repo).authenticate({"x-api-key": full})
     assert principal is not None
     assert principal.auth_method is AuthMethod.API_KEY

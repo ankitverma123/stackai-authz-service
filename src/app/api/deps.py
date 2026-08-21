@@ -26,7 +26,7 @@ from authz_core import (
 from fastapi import BackgroundTasks, Depends, Request
 
 from app.auth.api_key import ApiKeyAuthenticator
-from app.auth.base import AnonymousAuthenticator, AuthenticatorChain
+from app.auth.base import AnonymousAuthenticator, AuthenticationFailed, AuthenticatorChain
 from app.auth.jwt import JWTAuthenticator
 from app.auth.principal import Principal
 from app.infra.api_key_repository import SupabaseApiKeyRepository
@@ -99,7 +99,10 @@ def requires_authenticated() -> Callable[..., Awaitable[Authorized]]:
         principal: Annotated[Principal, Depends(get_principal)],
     ) -> Authorized:
         if principal.is_anonymous:
-            raise AuthzDenied(None, "authenticated", "collection")
+            # No/invalid credentials on a protected route -> 401 (spec §9's error
+            # table), not 403: 403 means "we know who you are and denied you",
+            # which is not what an anonymous caller hitting a collection route is.
+            raise AuthenticationFailed("Bearer", "authentication required")
         return Authorized(True)
 
     setattr(dependency, AUTHZ_DEPENDENCY_MARKER, True)
@@ -138,18 +141,18 @@ def get_audit_writer() -> AuditWriter:
 @lru_cache
 def get_authenticator() -> AuthenticatorChain:
     settings = get_settings()
-    return AuthenticatorChain([
-        JWTAuthenticator(
-            secret=settings.supabase_jwt_secret, audience=settings.jwt_audience
-        ),
-        # Ahead of Anonymous, behind JWT: an x-api-key header is a credential
-        # presentation like a Bearer token, so it must get its own chance before
-        # anything falls through to anonymous. ApiKeyAuthenticator.authenticate()
-        # checks for the header before touching the repository, so a request with
-        # no x-api-key header makes no DB call here.
-        ApiKeyAuthenticator(SupabaseApiKeyRepository(get_supabase())),
-        AnonymousAuthenticator(),
-    ])
+    return AuthenticatorChain(
+        [
+            JWTAuthenticator(secret=settings.supabase_jwt_secret, audience=settings.jwt_audience),
+            # Ahead of Anonymous, behind JWT: an x-api-key header is a credential
+            # presentation like a Bearer token, so it must get its own chance before
+            # anything falls through to anonymous. ApiKeyAuthenticator.authenticate()
+            # checks for the header before touching the repository, so a request with
+            # no x-api-key header makes no DB call here.
+            ApiKeyAuthenticator(SupabaseApiKeyRepository(get_supabase())),
+            AnonymousAuthenticator(),
+        ]
+    )
 
 
 async def get_principal(request: Request) -> Principal:
@@ -209,9 +212,7 @@ def _maybe_audit(
         )
 
 
-def requires(
-    action: Action, resource_spec: ResourceSpec
-) -> Callable[..., Awaitable[Authorized]]:
+def requires(action: Action, resource_spec: ResourceSpec) -> Callable[..., Awaitable[Authorized]]:
     """Build the authorization dependency for one (action, resource) pair."""
 
     async def dependency(
@@ -245,7 +246,7 @@ def requires(
         # gate on and no audit row is written here — see app/infra/audit.py's
         # fourth limitation.
         if not any(e.ref == resource for e in slice_.resources):
-            raise ResourceNotVisible(resource.literal())      # -> 404
+            raise ResourceNotVisible(resource.literal())  # -> 404
 
         visibility = engine.authorize(
             principal=principal.ref,
@@ -259,9 +260,13 @@ def requires(
             # to catch, so it must leave a trace even though it never reaches the
             # action decision below.
             _maybe_audit(
-                background_tasks, writer,
-                action=VISIBILITY_ACTION[resource.type], resource=resource,
-                slice_=slice_, principal=principal, decision=visibility,
+                background_tasks,
+                writer,
+                action=VISIBILITY_ACTION[resource.type],
+                resource=resource,
+                slice_=slice_,
+                principal=principal,
+                decision=visibility,
                 correlation_id=cid,
             )
             raise AuthzEngineError(visibility.message)
@@ -270,12 +275,16 @@ def requires(
             # a Deny worth recording: probing another org's resources leaves a trace
             # even though the client only ever sees a 404.
             _maybe_audit(
-                background_tasks, writer,
-                action=VISIBILITY_ACTION[resource.type], resource=resource,
-                slice_=slice_, principal=principal, decision=visibility,
+                background_tasks,
+                writer,
+                action=VISIBILITY_ACTION[resource.type],
+                resource=resource,
+                slice_=slice_,
+                principal=principal,
+                decision=visibility,
                 correlation_id=cid,
             )
-            raise ResourceNotVisible(resource.literal())      # -> 404
+            raise ResourceNotVisible(resource.literal())  # -> 404
 
         decision = engine.authorize(
             principal=principal.ref,
@@ -288,9 +297,14 @@ def requires(
         # D6 — checked FIRST. An Allow carrying errors is the dangerous case.
         if isinstance(decision, EngineError):
             _maybe_audit(
-                background_tasks, writer,
-                action=action, resource=resource, slice_=slice_,
-                principal=principal, decision=decision, correlation_id=cid,
+                background_tasks,
+                writer,
+                action=action,
+                resource=resource,
+                slice_=slice_,
+                principal=principal,
+                decision=decision,
+                correlation_id=cid,
             )
             raise AuthzEngineError(decision.message)
 
@@ -298,9 +312,14 @@ def requires(
         # BackgroundTasks, so a slow or failing audit write can never add latency
         # to — or fail — the request it describes (see app/infra/audit.py).
         _maybe_audit(
-            background_tasks, writer,
-            action=action, resource=resource, slice_=slice_,
-            principal=principal, decision=decision, correlation_id=cid,
+            background_tasks,
+            writer,
+            action=action,
+            resource=resource,
+            slice_=slice_,
+            principal=principal,
+            decision=decision,
+            correlation_id=cid,
         )
 
         if not decision.allowed:

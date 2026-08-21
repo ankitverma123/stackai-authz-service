@@ -52,6 +52,7 @@ class FakeWorkflowsTable:
     def __init__(self, pages: dict[str, list[Row]]) -> None:
         self._pages = pages
         self._cursor = ""
+        self.gt_calls: list[str] = []
 
     def select(self, *_: str) -> "FakeWorkflowsTable":
         return self
@@ -60,6 +61,7 @@ class FakeWorkflowsTable:
         return self
 
     def gt(self, _column: str, value: str) -> "FakeWorkflowsTable":
+        self.gt_calls.append(value)
         self._cursor = value
         return self
 
@@ -106,9 +108,7 @@ class DecisionEngine:
     def authorize_batch(
         self, *, resources: tuple[EntityRef, ...], **_: object
     ) -> tuple[Decision, ...]:
-        return tuple(
-            Allow(None) if r.id in self._allowed_ids else Deny(None) for r in resources
-        )
+        return tuple(Allow(None) if r.id in self._allowed_ids else Deny(None) for r in resources)
 
 
 def _client(pages: dict[str, list[Row]], allowed_ids: set[str]) -> TestClient:
@@ -180,3 +180,24 @@ def test_round_cap_hit_with_no_survivors_still_returns_a_live_cursor() -> None:
     assert body["items"] == []
     assert body["next_cursor"] == last_id
     assert body["next_cursor"] is not None
+
+
+def test_list_workflows_first_page_omits_the_gt_filter() -> None:
+    """Regression: `.gt("id", fetch_cursor or "")` compared a uuid column against
+    the empty string on the first page (no cursor), which Postgres rejects. The
+    guard must skip the `.gt()` call entirely when there is no cursor yet."""
+    limit = 2
+    rows = [_row() for _ in range(limit)]
+    fake_client = FakeClient({"": rows})
+
+    app = create_app()
+    app.dependency_overrides[get_principal] = lambda: _PRINCIPAL
+    app.dependency_overrides[get_entity_provider] = lambda: StubProvider()
+    app.dependency_overrides[get_engine] = lambda: DecisionEngine({r["id"] for r in rows})
+    app.dependency_overrides[get_supabase] = lambda: fake_client
+    client = TestClient(app)
+
+    response = client.get("/v1/workflows", params={"limit": limit})
+
+    assert response.status_code == 200
+    assert fake_client._table.gt_calls == []

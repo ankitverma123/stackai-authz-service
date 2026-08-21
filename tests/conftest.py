@@ -102,4 +102,4 @@ def app_with_denied_engine() -> FastAPI:
 
 @pytest.fixture
 def app_with_erroring_engine() -> FastAPI:
-    return _app(EngineError("Workflow::\"wf-1\" does not have the attribute `exported`"))
+    return _app(EngineError('Workflow::"wf-1" does not have the attribute `exported`'))

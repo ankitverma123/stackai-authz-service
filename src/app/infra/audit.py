@@ -75,9 +75,9 @@ class AuditWriter:
             "action": action.value,
             "resource_type": resource_type,
             "resource_id": resource_id,
-            "decision": "error" if isinstance(decision, EngineError) else (
-                "allow" if decision.allowed else "deny"
-            ),
+            "decision": "error"
+            if isinstance(decision, EngineError)
+            else ("allow" if decision.allowed else "deny"),
             "policy_id": getattr(decision, "policy_id", None),
             "correlation_id": correlation_id,
         }

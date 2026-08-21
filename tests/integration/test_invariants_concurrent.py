@@ -82,6 +82,4 @@ async def test_cross_scope_race_cannot_strand_a_team(
     )
 
     remaining_admins = await client.count_team_admins(team_id)
-    assert remaining_admins >= 1, (
-        f"team stranded with no admin; results={results}"
-    )
+    assert remaining_admins >= 1, f"team stranded with no admin; results={results}"

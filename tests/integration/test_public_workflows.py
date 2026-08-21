@@ -104,7 +104,5 @@ async def test_exported_org_only_workflow_runs_for_an_org_member(
     """Same route, now authenticated: a Bearer token from a member of the
     workflow's own org satisfies `principal in resource.org`."""
     workflow_id, member_jwt = seeded_workflow_exported_org_only
-    response = client.authed(member_jwt).post(
-        f"/v1/public/workflows/{workflow_id}/executions"
-    )
+    response = client.authed(member_jwt).post(f"/v1/public/workflows/{workflow_id}/executions")
     assert response.status_code == 201

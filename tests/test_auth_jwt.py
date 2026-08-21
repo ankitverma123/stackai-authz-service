@@ -7,7 +7,7 @@ from app.auth.base import AuthenticationFailed
 from app.auth.jwt import JWTAuthenticator
 from app.auth.principal import AuthMethod
 
-SECRET = "test-secret"
+SECRET = "test-secret-that-is-at-least-32-bytes-long"
 
 
 def _token(**overrides: object) -> str:
@@ -47,7 +47,9 @@ async def test_wrong_audience_is_rejected() -> None:
 
 async def test_tampered_signature_is_rejected() -> None:
     auth = JWTAuthenticator(secret=SECRET, audience="authenticated")
-    forged = jwt.encode({"sub": "x", "aud": "authenticated"}, "wrong-key", algorithm="HS256")
+    forged = jwt.encode(
+        {"sub": "x", "aud": "authenticated"}, "wrong-key-that-is-also-32-bytes+", algorithm="HS256"
+    )
     with pytest.raises(AuthenticationFailed):
         await auth.authenticate({"authorization": f"Bearer {forged}"})
 

@@ -34,10 +34,12 @@ async def test_workflow_without_export_row_gets_defaults() -> None:
     """A workflow with no workflow_exports row must still emit exported/visibility/
     password_protected. Omitting them makes `must-be-exported` error and be SKIPPED,
     which fails OPEN on the public endpoint."""
-    client = FakeClient({
-        "workflows": [{"id": "wf-1", "org_id": "org-1", "team_id": "team-1"}],
-        "workflow_exports": [],  # deliberately empty
-    })
+    client = FakeClient(
+        {
+            "workflows": [{"id": "wf-1", "org_id": "org-1", "team_id": "team-1"}],
+            "workflow_exports": [],  # deliberately empty
+        }
+    )
     provider = SupabaseEntityProvider(client)  # type: ignore[arg-type]
     entity = provider.build_workflow_entity(
         {"id": "wf-1", "org_id": "org-1", "team_id": "team-1"}, export_row=None
@@ -77,23 +79,29 @@ async def test_capability_slice_parses_nested_membership_rows() -> None:
     team_memberships/org_memberships joined to roles joined to role_capabilities.
     A second team-1 row with roles=None proves the `(row.get("roles") or {}).get(...)`
     guard contributes no capabilities instead of crashing on `NoneType.get`."""
-    client = FakeClient({
-        "team_memberships": [
-            {
-                "team_id": "team-1",
-                "roles": {"id": "r1", "role_capabilities": [
-                    {"capability": "view"}, {"capability": "run"},
-                ]},
-            },
-            {"team_id": "team-1", "roles": None},
-        ],
-        "org_memberships": [
-            {
-                "org_id": "org-1",
-                "roles": {"id": "r2", "role_capabilities": [{"capability": "manage_org"}]},
-            },
-        ],
-    })
+    client = FakeClient(
+        {
+            "team_memberships": [
+                {
+                    "team_id": "team-1",
+                    "roles": {
+                        "id": "r1",
+                        "role_capabilities": [
+                            {"capability": "view"},
+                            {"capability": "run"},
+                        ],
+                    },
+                },
+                {"team_id": "team-1", "roles": None},
+            ],
+            "org_memberships": [
+                {
+                    "org_id": "org-1",
+                    "roles": {"id": "r2", "role_capabilities": [{"capability": "manage_org"}]},
+                },
+            ],
+        }
+    )
     provider = SupabaseEntityProvider(client)  # type: ignore[arg-type]
 
     slice_ = await provider.capability_slice("u1")
@@ -106,33 +114,39 @@ async def test_slice_for_batches_and_builds_entities() -> None:
     """Exercises the batched .in_() fetch + assembly: one workflow and one team
     resource, fetched in two queries (not per-resource), with the principal's
     capabilities and the org_admins Cap present on the resulting slice."""
-    client = FakeClient({
-        "team_memberships": [
-            {
-                "team_id": "team-1",
-                "roles": {"id": "r1", "role_capabilities": [
-                    {"capability": "view"}, {"capability": "run"},
-                ]},
-            },
-        ],
-        "org_memberships": [
-            {
-                "org_id": "org-1",
-                "roles": {"id": "r2", "role_capabilities": [{"capability": "manage_org"}]},
-            },
-        ],
-        "workflows": [
-            {
-                "id": "wf-1",
-                "org_id": "org-1",
-                "team_id": "team-1",
-                "workflow_exports": [
-                    {"is_exported": True, "visibility": "public", "password_hash": None},
-                ],
-            },
-        ],
-        "teams": [{"id": "team-1", "org_id": "org-1"}],
-    })
+    client = FakeClient(
+        {
+            "team_memberships": [
+                {
+                    "team_id": "team-1",
+                    "roles": {
+                        "id": "r1",
+                        "role_capabilities": [
+                            {"capability": "view"},
+                            {"capability": "run"},
+                        ],
+                    },
+                },
+            ],
+            "org_memberships": [
+                {
+                    "org_id": "org-1",
+                    "roles": {"id": "r2", "role_capabilities": [{"capability": "manage_org"}]},
+                },
+            ],
+            "workflows": [
+                {
+                    "id": "wf-1",
+                    "org_id": "org-1",
+                    "team_id": "team-1",
+                    "workflow_exports": [
+                        {"is_exported": True, "visibility": "public", "password_hash": None},
+                    ],
+                },
+            ],
+            "teams": [{"id": "team-1", "org_id": "org-1"}],
+        }
+    )
     provider = SupabaseEntityProvider(client)  # type: ignore[arg-type]
 
     entity_slice = await provider.slice_for(

@@ -53,12 +53,8 @@ def test_prefilter_is_a_superset_of_what_the_engine_allows() -> None:
             slice_=slice_,
             context=AuthzContext(auth_method="jwt"),
         )
-        allowed = {
-            w.ref.id for w, d in zip(workflows, decisions, strict=True) if d.allowed
-        }
-        assert allowed <= prefiltered, (
-            f"pre-filter is too narrow — hides {allowed - prefiltered}"
-        )
+        allowed = {w.ref.id for w, d in zip(workflows, decisions, strict=True) if d.allowed}
+        assert allowed <= prefiltered, f"pre-filter is too narrow — hides {allowed - prefiltered}"
 
 
 def test_empty_slice_yields_a_filter_that_matches_nothing() -> None:

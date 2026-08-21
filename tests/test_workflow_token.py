@@ -1,6 +1,6 @@
 from app.auth.workflow_token import issue_workflow_token, verify_workflow_token
 
-SECRET = "s3cret"
+SECRET = "s3cret-that-is-at-least-32-bytes-long"
 
 
 def test_token_verifies_for_its_own_workflow() -> None:
@@ -20,7 +20,9 @@ def test_expired_token_is_rejected() -> None:
 
 
 def test_token_signed_with_another_secret_is_rejected() -> None:
-    token = issue_workflow_token("wf-1", secret="other", ttl_seconds=60)
+    token = issue_workflow_token(
+        "wf-1", secret="other-secret-that-is-also-32-bytes+", ttl_seconds=60
+    )
     assert verify_workflow_token(token, "wf-1", secret=SECRET) is False
 
 

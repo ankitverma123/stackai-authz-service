@@ -1,4 +1,3 @@
-
 import pytest
 from authz_core import (
     Capability,
@@ -19,11 +18,16 @@ ROLE_CAPS: dict[str, set[Capability]] = {
     "viewer": {Capability.VIEW, Capability.RUN},
     "editor": {Capability.VIEW, Capability.RUN, Capability.EDIT, Capability.EXPORT},
     "admin": {
-        Capability.VIEW, Capability.RUN, Capability.EDIT, Capability.EXPORT,
-        Capability.PROTECT_EXPORT, Capability.DELETE, Capability.MANAGE_MEMBERS,
+        Capability.VIEW,
+        Capability.RUN,
+        Capability.EDIT,
+        Capability.EXPORT,
+        Capability.PROTECT_EXPORT,
+        Capability.DELETE,
+        Capability.MANAGE_MEMBERS,
     },
-    "auditor": {Capability.VIEW},          # proves data-driven roles: view but NOT run
-    "super_admin": set(),                   # power comes from the org_admins cap
+    "auditor": {Capability.VIEW},  # proves data-driven roles: view but NOT run
+    "super_admin": set(),  # power comes from the org_admins cap
     "outsider": set(),
     "anonymous": set(),
 }
@@ -40,9 +44,7 @@ def build_slice(
     in_org: bool = True,
     team: EntityRef = TEAM,
 ) -> tuple[EntityRef, EntitySlice]:
-    caps: set[EntityRef] = {
-        cap_ref(c, "team", team.id) for c in ROLE_CAPS.get(role, set())
-    }
+    caps: set[EntityRef] = {cap_ref(c, "team", team.id) for c in ROLE_CAPS.get(role, set())}
     if role == "super_admin":
         caps.add(cap_ref(Capability.MANAGE_ORG, "org", ORG.id))
 

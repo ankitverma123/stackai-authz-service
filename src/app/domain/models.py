@@ -21,6 +21,7 @@ class TeamRead(BaseModel):
 
 class TeamMembershipRead(BaseModel):
     """Satisfies the brief's 'list teams a user belongs to and his role within them'."""
+
     team_id: UUID
     team_name: str
     org_id: UUID

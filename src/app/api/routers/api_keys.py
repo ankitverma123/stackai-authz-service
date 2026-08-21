@@ -22,6 +22,7 @@ from authz_core import Action, ResourceNotVisible
 from fastapi import APIRouter, Depends, status
 
 from app.api.deps import Authorized, Resource, get_principal, requires
+from app.api.errors import UnknownApiKeyScope
 from app.auth.api_key import mint_api_key
 from app.auth.principal import Principal
 from app.domain.models import ApiKeyCreate, ApiKeyCreated, ApiKeyRead
@@ -31,6 +32,22 @@ from supabase import Client
 router = APIRouter(prefix="/v1", tags=["api-keys"])
 
 Row = dict[str, Any]
+
+#: The seeded rows of `api_key_scopes` (supabase/migrations/20260820000300_seed.sql).
+#: No enum for this exists in authz_core the way `Capability` does — `workflow:write`
+#: and `governance:denied` in ACTION_SCOPES (actions.py) are deliberate sentinels
+#: never seeded, so they must NOT appear here.
+_KNOWN_SCOPES = frozenset({"workflow:read", "workflow:run"})
+
+
+def _validate_scopes(names: list[str]) -> None:
+    """Checked against the seeded scope set BEFORE any Supabase call, the same
+    idiom as roles.py's `_validate_capabilities`. `api_key_grants.scope` is an
+    FK against `api_key_scopes`, so this turns what would otherwise be an
+    unhandled FK-violation 500 into a clean 422."""
+    unknown = [n for n in names if n not in _KNOWN_SCOPES]
+    if unknown:
+        raise UnknownApiKeyScope(unknown)
 
 
 def _to_read(row: Row) -> ApiKeyRead:
@@ -60,24 +77,27 @@ async def create_api_key(
 ) -> ApiKeyCreated:
     """Only the prefix and hash are persisted — the full key is returned here and
     nowhere else."""
+    _validate_scopes(body.scopes)
     full, prefix, hashed = mint_api_key()
     row = cast(
         Row,
         client.table("api_keys")
-        .insert({
-            "user_id": principal.subject,
-            "org_id": str(org_id),
-            "name": body.name,
-            "prefix": prefix,
-            "key_hash": hashed,
-            "expires_at": body.expires_at.isoformat() if body.expires_at else None,
-        })
+        .insert(
+            {
+                "user_id": principal.subject,
+                "org_id": str(org_id),
+                "name": body.name,
+                "prefix": prefix,
+                "key_hash": hashed,
+                "expires_at": body.expires_at.isoformat() if body.expires_at else None,
+            }
+        )
         .execute()
         .data[0],
     )
-    client.table("api_key_grants").insert([
-        {"api_key_id": row["id"], "scope": scope} for scope in body.scopes
-    ]).execute()
+    client.table("api_key_grants").insert(
+        [{"api_key_id": row["id"], "scope": scope} for scope in body.scopes]
+    ).execute()
     return ApiKeyCreated(
         id=row["id"],
         name=row["name"],
@@ -99,8 +119,10 @@ async def list_api_keys(
     rows = cast(
         list[Row],
         client.table("api_keys")
-        .select("id, name, prefix, created_at, expires_at, revoked_at, last_used_at, "
-                "api_key_grants(scope)")
+        .select(
+            "id, name, prefix, created_at, expires_at, revoked_at, last_used_at, "
+            "api_key_grants(scope)"
+        )
         .eq("org_id", str(org_id))
         .execute()
         .data,
@@ -108,9 +130,7 @@ async def list_api_keys(
     return [_to_read(row) for row in rows]
 
 
-@router.delete(
-    "/orgs/{org_id}/api-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/orgs/{org_id}/api-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_api_key(
     org_id: UUID,
     key_id: UUID,

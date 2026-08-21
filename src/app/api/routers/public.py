@@ -140,9 +140,7 @@ async def exchange_password_for_token(
         secret=settings.workflow_access_token_secret,
         ttl_seconds=settings.workflow_access_token_ttl_seconds,
     )
-    return WorkflowAccessToken(
-        token=token, expires_in=settings.workflow_access_token_ttl_seconds
-    )
+    return WorkflowAccessToken(token=token, expires_in=settings.workflow_access_token_ttl_seconds)
 
 
 def _verify_password(password: str, hashed: str) -> bool:

@@ -36,13 +36,22 @@ class Action(StrEnum):
 
 
 #: Forbidden to API keys. Machine identities never perform governance.
-GOVERNANCE_ACTIONS: Final[frozenset[Action]] = frozenset({
-    Action.ORG_ADD_USER, Action.ORG_REMOVE_USER, Action.ORG_CHANGE_ROLE,
-    Action.TEAM_CREATE, Action.TEAM_DELETE, Action.TEAM_ADD_MEMBER,
-    Action.TEAM_REMOVE_MEMBER, Action.TEAM_CHANGE_ROLE,
-    Action.ROLE_CREATE, Action.ROLE_DELETE,
-    Action.API_KEY_CREATE, Action.API_KEY_REVOKE,
-})
+GOVERNANCE_ACTIONS: Final[frozenset[Action]] = frozenset(
+    {
+        Action.ORG_ADD_USER,
+        Action.ORG_REMOVE_USER,
+        Action.ORG_CHANGE_ROLE,
+        Action.TEAM_CREATE,
+        Action.TEAM_DELETE,
+        Action.TEAM_ADD_MEMBER,
+        Action.TEAM_REMOVE_MEMBER,
+        Action.TEAM_CHANGE_ROLE,
+        Action.ROLE_CREATE,
+        Action.ROLE_DELETE,
+        Action.API_KEY_CREATE,
+        Action.API_KEY_REVOKE,
+    }
+)
 
 #: What an org super-admin may do inside their own org.
 #:
@@ -51,18 +60,34 @@ GOVERNANCE_ACTIONS: Final[frozenset[Action]] = frozenset({
 #: — the same standing-grant hazard §6.2 removed from Cedar, just relocated into
 #: Python. Adding an Action means deciding, here, whether super-admins get it.
 #: test_every_action_is_classified enforces that the decision was made.
-ORG_ADMINISTRABLE_ACTIONS: Final[frozenset[Action]] = frozenset({
-    Action.ORG_VIEW, Action.ORG_ADD_USER, Action.ORG_REMOVE_USER, Action.ORG_CHANGE_ROLE,
-    Action.TEAM_VIEW, Action.TEAM_CREATE, Action.TEAM_DELETE, Action.TEAM_ADD_MEMBER,
-    Action.TEAM_REMOVE_MEMBER, Action.TEAM_CHANGE_ROLE,
-    Action.WORKFLOW_LIST, Action.WORKFLOW_VIEW, Action.WORKFLOW_CREATE,
-    Action.WORKFLOW_UPDATE, Action.WORKFLOW_DELETE, Action.WORKFLOW_RUN,
-    Action.WORKFLOW_EXPORT, Action.WORKFLOW_PROTECT_EXPORT,
-    Action.ROLE_CREATE, Action.ROLE_DELETE,
-    Action.API_KEY_CREATE, Action.API_KEY_REVOKE,
-    # Deliberately EXCLUDED: WorkflowRunExported — the public endpoint applies to
-    # everyone equally, super-admins included (assumption #13).
-})
+ORG_ADMINISTRABLE_ACTIONS: Final[frozenset[Action]] = frozenset(
+    {
+        Action.ORG_VIEW,
+        Action.ORG_ADD_USER,
+        Action.ORG_REMOVE_USER,
+        Action.ORG_CHANGE_ROLE,
+        Action.TEAM_VIEW,
+        Action.TEAM_CREATE,
+        Action.TEAM_DELETE,
+        Action.TEAM_ADD_MEMBER,
+        Action.TEAM_REMOVE_MEMBER,
+        Action.TEAM_CHANGE_ROLE,
+        Action.WORKFLOW_LIST,
+        Action.WORKFLOW_VIEW,
+        Action.WORKFLOW_CREATE,
+        Action.WORKFLOW_UPDATE,
+        Action.WORKFLOW_DELETE,
+        Action.WORKFLOW_RUN,
+        Action.WORKFLOW_EXPORT,
+        Action.WORKFLOW_PROTECT_EXPORT,
+        Action.ROLE_CREATE,
+        Action.ROLE_DELETE,
+        Action.API_KEY_CREATE,
+        Action.API_KEY_REVOKE,
+        # Deliberately EXCLUDED: WorkflowRunExported — the public endpoint applies to
+        # everyone equally, super-admins included (assumption #13).
+    }
+)
 
 #: Action -> API key scope. Absence causes api-key-scope-check to DENY (fail closed).
 #:

@@ -47,6 +47,7 @@ from app.domain.models import (
 )
 from app.infra.client import get_supabase
 from app.infra.entity_provider import SupabaseEntityProvider
+from app.infra.lookups import team_org_id as _team_org_id
 from app.infra.prefilter import build_workflow_prefilter
 from supabase import Client
 
@@ -67,15 +68,6 @@ MAX_REFILL_ROUNDS = 5
 _hasher = PasswordHasher()
 
 
-def _team_org_id(client: Client, team_id: UUID) -> str:
-    """The guard has already confirmed team_id is visible, so exactly one row
-    exists here — safe to use .single() rather than handling zero/many."""
-    row = cast(
-        Row, client.table("teams").select("org_id").eq("id", str(team_id)).single().execute().data
-    )
-    return str(row["org_id"])
-
-
 @router.post(
     "/teams/{team_id}/workflows",
     status_code=status.HTTP_201_CREATED,
@@ -92,12 +84,14 @@ async def create_workflow(
     row = cast(
         Row,
         client.table("workflows")
-        .insert({
-            "org_id": org_id,
-            "team_id": str(team_id),
-            "name": body.name,
-            "created_by": principal.subject,
-        })
+        .insert(
+            {
+                "org_id": org_id,
+                "team_id": str(team_id),
+                "name": body.name,
+                "created_by": principal.subject,
+            }
+        )
         .execute()
         .data[0],
     )
@@ -138,16 +132,17 @@ async def list_workflows(
     # a live cursor rather than hanging.
     while len(survivors) < limit and not exhausted and rounds < MAX_REFILL_ROUNDS:
         rounds += 1
+        query = (
+            client.table("workflows").select("*, workflow_exports(*)").or_(spec.to_postgrest_or())
+        )
+        # Only applied once a cursor exists. `id` is a uuid column, and comparing
+        # it against "" (the pre-fix sentinel for "no cursor yet") is rejected by
+        # Postgres on the very first page — omit the filter entirely instead.
+        if fetch_cursor:
+            query = query.gt("id", fetch_cursor)
         rows = cast(
             list[Row],
-            client.table("workflows")
-            .select("*, workflow_exports(*)")
-            .or_(spec.to_postgrest_or())
-            .gt("id", fetch_cursor or "")
-            .order("id")
-            .limit(limit * OVERFETCH_FACTOR)
-            .execute()
-            .data,
+            query.order("id").limit(limit * OVERFETCH_FACTOR).execute().data,
         )
         if not rows:
             exhausted = True
@@ -155,10 +150,10 @@ async def list_workflows(
 
         refs = tuple(EntityRef("Workflow", r["id"]) for r in rows)
         slice_ = await provider.slice_for(principal.ref, refs)
-        decisions = engine.authorize_batch(     # authoritative — the filter is not
+        decisions = engine.authorize_batch(  # authoritative — the filter is not
             principal=principal.ref,
-            action=Action.WORKFLOW_VIEW,        # each ROW is a view; the endpoint
-            resources=refs,                     # itself is guarded by requires_authenticated()
+            action=Action.WORKFLOW_VIEW,  # each ROW is a view; the endpoint
+            resources=refs,  # itself is guarded by requires_authenticated()
             slice_=slice_,
             context=build_context(request, principal),
         )
@@ -166,9 +161,7 @@ async def list_workflows(
             if isinstance(decision, EngineError):
                 raise AuthzEngineError(decision.message)
 
-        survivors.extend(
-            row for row, d in zip(rows, decisions, strict=True) if d.allowed
-        )
+        survivors.extend(row for row, d in zip(rows, decisions, strict=True) if d.allowed)
         last_fetched_id = rows[-1]["id"]
         fetch_cursor = last_fetched_id
         exhausted = len(rows) < limit * OVERFETCH_FACTOR
@@ -254,11 +247,13 @@ async def set_workflow_export(
     row = cast(
         Row,
         client.table("workflow_exports")
-        .upsert({
-            "workflow_id": str(workflow_id),
-            "is_exported": True,
-            "visibility": body.visibility,
-        })
+        .upsert(
+            {
+                "workflow_id": str(workflow_id),
+                "is_exported": True,
+                "visibility": body.visibility,
+            }
+        )
         .execute()
         .data[0],
     )

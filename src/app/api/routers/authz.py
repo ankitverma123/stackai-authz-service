@@ -81,7 +81,7 @@ async def explain(
         slice_=slice_,
         context=context,
     )
-    if isinstance(decision, EngineError):      # D6: still never a bogus explain result
+    if isinstance(decision, EngineError):  # D6: still never a bogus explain result
         raise AuthzEngineError(decision.message)
 
     return ExplainResponse(

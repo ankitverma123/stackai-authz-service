@@ -64,10 +64,16 @@ class WorkflowEntity:
     visibility: str
     password_protected: bool
 
-    _ATTRS = frozenset({
-        Capability.VIEW, Capability.RUN, Capability.EDIT,
-        Capability.EXPORT, Capability.PROTECT_EXPORT, Capability.DELETE,
-    })
+    _ATTRS = frozenset(
+        {
+            Capability.VIEW,
+            Capability.RUN,
+            Capability.EDIT,
+            Capability.EXPORT,
+            Capability.PROTECT_EXPORT,
+            Capability.DELETE,
+        }
+    )
 
     def to_cedar(self) -> CedarEntity:
         return {
@@ -91,9 +97,14 @@ class TeamEntity:
     org: EntityRef
     capabilities: dict[Capability, EntityRef]
 
-    _ATTRS = frozenset({
-        Capability.VIEW, Capability.EDIT, Capability.MANAGE_MEMBERS, Capability.DELETE,
-    })
+    _ATTRS = frozenset(
+        {
+            Capability.VIEW,
+            Capability.EDIT,
+            Capability.MANAGE_MEMBERS,
+            Capability.DELETE,
+        }
+    )
 
     def to_cedar(self) -> CedarEntity:
         return {
@@ -112,9 +123,13 @@ class OrgEntity:
     ref: EntityRef
     capabilities: dict[Capability, EntityRef]
 
-    _ATTRS = frozenset({
-        Capability.CREATE_TEAM, Capability.MANAGE_ROLES, Capability.MANAGE_API_KEYS,
-    })
+    _ATTRS = frozenset(
+        {
+            Capability.CREATE_TEAM,
+            Capability.MANAGE_ROLES,
+            Capability.MANAGE_API_KEYS,
+        }
+    )
 
     def to_cedar(self) -> CedarEntity:
         return {

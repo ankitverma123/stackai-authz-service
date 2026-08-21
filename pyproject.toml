@@ -37,6 +37,12 @@ testpaths = ["tests", "packages/authz-core/tests"]
 pythonpath = ["src"]
 markers = ["integration: requires a live Supabase database"]
 addopts = "-m 'not integration'"
+filterwarnings = [
+    # Library-level, not ours to fix: fastapi.testclient importing starlette's
+    # TestClient. Everything else should surface, so this is a targeted silence,
+    # not a blanket "ignore".
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated:starlette.exceptions.StarletteDeprecationWarning",
+]
 
 [tool.mypy]
 strict = true

@@ -167,7 +167,7 @@ class SupabaseEntityProvider:
             workflow_rows = cast(
                 list[Row],
                 self._client.table("workflows")
-                .select("*, workflow_exports(*)")     # embedded: no second round-trip
+                .select("*, workflow_exports(*)")  # embedded: no second round-trip
                 .in_("id", wanted["Workflow"])
                 .execute()
                 .data,
@@ -180,8 +180,7 @@ class SupabaseEntityProvider:
         if wanted.get("Team"):
             team_rows = cast(
                 list[Row],
-                self._client.table("teams").select("*")
-                .in_("id", wanted["Team"]).execute().data,
+                self._client.table("teams").select("*").in_("id", wanted["Team"]).execute().data,
             )
             for row in team_rows:
                 entities.append(self.build_team_entity(row))
@@ -215,9 +214,3 @@ class SupabaseEntityProvider:
             resources=tuple(entities),
             caps=tuple(all_caps),
         )
-
-    def _fetch_one(self, table: str, value: str, key: str = "id") -> Row | None:
-        rows = cast(
-            list[Row], self._client.table(table).select("*").eq(key, value).execute().data
-        )
-        return rows[0] if rows else None

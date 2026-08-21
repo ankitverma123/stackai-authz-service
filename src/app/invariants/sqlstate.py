@@ -18,6 +18,7 @@ INVARIANT_BY_SQLSTATE: dict[str, str] = {
     "ZA004": "RoleInUse",
 }
 
+
 def raise_for_postgrest_error(exc: Exception) -> NoReturn:
     """Re-raise as InvariantViolation if this is one of ours; otherwise untouched.
 

@@ -58,8 +58,26 @@ class UnknownCapability(Exception):
         super().__init__(f"Unknown capability(ies): {names!r}")
 
 
+class UnknownApiKeyScope(Exception):
+    """`POST /v1/orgs/{org_id}/api-keys` named a scope that isn't seeded.
+
+    `api_key_grants.scope` is FK-constrained against `api_key_scopes`, so this
+    check exists for the same reason UnknownCapability does: turn what would
+    otherwise be an unhandled PostgREST FK-violation into a clean 422, raised
+    BEFORE any Supabase call."""
+
+    def __init__(self, names: list[str]) -> None:
+        self.names = names
+        super().__init__(f"Unknown scope(s): {names!r}")
+
+
 def problem_response(
-    *, status: int, title: str, detail: str, correlation_id: str, **extra: Any  # noqa: ANN401
+    *,
+    status: int,
+    title: str,
+    detail: str,
+    correlation_id: str,
+    **extra: Any,  # noqa: ANN401
 ) -> JSONResponse:
     body: dict[str, Any] = {
         "type": f"{_BASE}/{title.lower().replace(' ', '-')}",
@@ -69,9 +87,7 @@ def problem_response(
         "correlation_id": correlation_id,
         **extra,
     }
-    return JSONResponse(
-        status_code=status, content=body, media_type="application/problem+json"
-    )
+    return JSONResponse(status_code=status, content=body, media_type="application/problem+json")
 
 
 def install_error_handlers(app: FastAPI) -> None:
@@ -82,11 +98,17 @@ def install_error_handlers(app: FastAPI) -> None:
         # class that never went through requires().
         cid = getattr(request.state, "correlation_id", None) or str(uuid.uuid4())
         logger.warning(
-            "authz denied", extra={"correlation_id": cid, "policy_id": exc.policy_id,
-                                   "action": exc.action, "resource": exc.resource},
+            "authz denied",
+            extra={
+                "correlation_id": cid,
+                "policy_id": exc.policy_id,
+                "action": exc.action,
+                "resource": exc.resource,
+            },
         )
         return problem_response(
-            status=403, title="Forbidden",
+            status=403,
+            title="Forbidden",
             detail="You do not have permission to perform this action.",
             correlation_id=cid,
         )
@@ -97,7 +119,9 @@ def install_error_handlers(app: FastAPI) -> None:
         cid = getattr(request.state, "correlation_id", None) or str(uuid.uuid4())
         logger.warning("resource not visible", extra={"correlation_id": cid})
         return problem_response(
-            status=404, title="Not Found", detail="Resource not found.",
+            status=404,
+            title="Not Found",
+            detail="Resource not found.",
             correlation_id=cid,
         )
 
@@ -106,7 +130,8 @@ def install_error_handlers(app: FastAPI) -> None:
         cid = getattr(request.state, "correlation_id", None) or str(uuid.uuid4())
         logger.error("authz engine error", extra={"correlation_id": cid, "detail": str(exc)})
         return problem_response(
-            status=500, title="Internal Server Error",
+            status=500,
+            title="Internal Server Error",
             detail="The authorization engine could not evaluate this request.",
             correlation_id=cid,
         )
@@ -115,14 +140,18 @@ def install_error_handlers(app: FastAPI) -> None:
     async def _invariant(request: Request, exc: InvariantViolation) -> JSONResponse:
         # 409, not 403: the caller HAD permission; the operation would corrupt state.
         return problem_response(
-            status=409, title="Conflict", detail=str(exc),
-            correlation_id=str(uuid.uuid4()), invariant=exc.name,
+            status=409,
+            title="Conflict",
+            detail=str(exc),
+            correlation_id=str(uuid.uuid4()),
+            invariant=exc.name,
         )
 
     @app.exception_handler(AuthenticationFailed)
     async def _unauthenticated(request: Request, exc: AuthenticationFailed) -> JSONResponse:
         response = problem_response(
-            status=401, title="Unauthorized",
+            status=401,
+            title="Unauthorized",
             detail="Valid credentials are required.",
             correlation_id=str(uuid.uuid4()),
         )
@@ -133,14 +162,18 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:
         return problem_response(
-            status=422, title="Unprocessable Entity", detail="Request validation failed.",
-            correlation_id=str(uuid.uuid4()), errors=exc.errors(),
+            status=422,
+            title="Unprocessable Entity",
+            detail="Request validation failed.",
+            correlation_id=str(uuid.uuid4()),
+            errors=exc.errors(),
         )
 
     @app.exception_handler(RateLimited)
     async def _rate_limited(request: Request, exc: RateLimited) -> JSONResponse:
         response = problem_response(
-            status=429, title="Too Many Requests",
+            status=429,
+            title="Too Many Requests",
             detail="Too many password attempts for this workflow. Try again later.",
             correlation_id=str(uuid.uuid4()),
         )
@@ -151,7 +184,9 @@ def install_error_handlers(app: FastAPI) -> None:
     async def _role_not_found(request: Request, exc: RoleNotFound) -> JSONResponse:
         # Also 422: a well-formed body referencing a role that doesn't exist.
         return problem_response(
-            status=422, title="Unprocessable Entity", detail=str(exc),
+            status=422,
+            title="Unprocessable Entity",
+            detail=str(exc),
             correlation_id=str(uuid.uuid4()),
         )
 
@@ -161,6 +196,19 @@ def install_error_handlers(app: FastAPI) -> None:
         # 500 — the whole point of D3 is that this is a validation failure, not
         # a database failure.
         return problem_response(
-            status=422, title="Unprocessable Entity", detail=str(exc),
+            status=422,
+            title="Unprocessable Entity",
+            detail=str(exc),
+            correlation_id=str(uuid.uuid4()),
+        )
+
+    @app.exception_handler(UnknownApiKeyScope)
+    async def _unknown_api_key_scope(request: Request, exc: UnknownApiKeyScope) -> JSONResponse:
+        # 422, same reasoning as UnknownCapability: a well-formed body naming a
+        # scope that isn't seeded is a validation failure, not a database one.
+        return problem_response(
+            status=422,
+            title="Unprocessable Entity",
+            detail=str(exc),
             correlation_id=str(uuid.uuid4()),
         )

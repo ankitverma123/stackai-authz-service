@@ -68,8 +68,11 @@ def test_every_principal_field_is_consumed() -> None:
     nothing — so a per-org key silently worked across every org its owner belonged
     to. A field that no consumer reads is a claim with no enforcement."""
     principal = Principal(
-        subject="u1", auth_method=AuthMethod.API_KEY, email="a@b.c",
-        api_key_scopes=frozenset({"workflow:run"}), api_key_org_id="org-1",
+        subject="u1",
+        auth_method=AuthMethod.API_KEY,
+        email="a@b.c",
+        api_key_scopes=frozenset({"workflow:run"}),
+        api_key_org_id="org-1",
     )
     consumed = set(build_context(_FakeRequest(), principal).to_cedar(None))
     mapped = {"subject", "auth_method", "email", "api_key_scopes", "api_key_org_id"}

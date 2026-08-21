@@ -97,9 +97,7 @@ async def test_team_creator_becomes_admin(
     """TeamCreate, then the team_creator_is_admin trigger. Visible in /v1/me/teams
     with role=admin — the assertion this endpoint exists to make (assumption #15)."""
     org_id, _, _, _, member_jwt = seeded_org_with_member
-    created = client.authed(member_jwt).post(
-        f"/v1/orgs/{org_id}/teams", json={"name": "New Team"}
-    )
+    created = client.authed(member_jwt).post(f"/v1/orgs/{org_id}/teams", json={"name": "New Team"})
     assert created.status_code == 201
     team_id = created.json()["id"]
 
@@ -136,9 +134,7 @@ async def test_removing_from_default_team_is_409(
     """DefaultTeamProtected (ZA003): a member cannot leave the org's default team
     while still belonging to the org — only remove_org_member's cascade may."""
     default_team_id, _, member_id, member_jwt = seeded_default_team_member
-    response = client.authed(member_jwt).delete(
-        f"/v1/teams/{default_team_id}/members/{member_id}"
-    )
+    response = client.authed(member_jwt).delete(f"/v1/teams/{default_team_id}/members/{member_id}")
     assert response.status_code == 409
     assert response.json()["invariant"] == "DefaultTeamProtected"
 

@@ -15,9 +15,11 @@ from app.main import create_app
 
 #: Deliberately unauthenticated. Every entry needs a reason.
 PUBLIC_ROUTES: set[tuple[str, str]] = {
-    ("GET", "/health"),                                        # liveness probe
-    ("GET", "/docs"), ("GET", "/redoc"), ("GET", "/openapi.json"),
-    ("POST", "/v1/public/workflows/{workflow_id}/access"),      # password exchange, rate-limited
+    ("GET", "/health"),  # liveness probe
+    ("GET", "/docs"),
+    ("GET", "/redoc"),
+    ("GET", "/openapi.json"),
+    ("POST", "/v1/public/workflows/{workflow_id}/access"),  # password exchange, rate-limited
     ("POST", "/v1/public/workflows/{workflow_id}/executions"),  # guarded by Cedar forbids
 }
 
@@ -70,8 +72,7 @@ def _find_unguarded(app: FastAPI, public_routes: set[tuple[str, str]]) -> list[s
 def test_every_route_is_guarded_or_explicitly_public() -> None:
     unguarded = _find_unguarded(create_app(), PUBLIC_ROUTES)
     assert not unguarded, (
-        "routes with no authorization dependency and no PUBLIC_ROUTES entry: "
-        f"{sorted(unguarded)}"
+        f"routes with no authorization dependency and no PUBLIC_ROUTES entry: {sorted(unguarded)}"
     )
 
 

@@ -85,9 +85,7 @@ class JWTAuthenticator:
             kid = jwt.get_unverified_header(token).get("kid", "")
             self._maybe_refetch(str(kid))
             key = self._jwks_client.get_signing_key_from_jwt(token).key
-            return jwt.decode(
-                token, key, algorithms=["RS256", "ES256"], audience=self._audience
-            )
+            return jwt.decode(token, key, algorithms=["RS256", "ES256"], audience=self._audience)
         assert self._secret is not None
         return jwt.decode(token, self._secret, algorithms=["HS256"], audience=self._audience)
 
