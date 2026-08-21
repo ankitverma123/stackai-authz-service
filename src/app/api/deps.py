@@ -4,6 +4,7 @@ No route handler contains role logic. Adding a guard is one dependency; the
 route-coverage test in Task 14 makes forgetting one a CI failure.
 """
 
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from functools import lru_cache
@@ -16,16 +17,19 @@ from authz_core import (
     AuthzEngineError,
     EngineError,
     EntityRef,
+    EntitySlice,
+    OrgEntity,
     PolicyEngine,
     ResourceNotVisible,
 )
-from fastapi import Depends, Request
+from fastapi import BackgroundTasks, Depends, Request
 
 from app.auth.api_key import ApiKeyAuthenticator
 from app.auth.base import AnonymousAuthenticator, AuthenticatorChain
 from app.auth.jwt import JWTAuthenticator
 from app.auth.principal import Principal
 from app.infra.api_key_repository import SupabaseApiKeyRepository
+from app.infra.audit import AuditWriter, should_record
 from app.infra.client import get_supabase
 from app.infra.entity_provider import SupabaseEntityProvider
 from app.settings import get_settings
@@ -123,6 +127,14 @@ def get_entity_provider() -> SupabaseEntityProvider:
 
 
 @lru_cache
+def get_audit_writer() -> AuditWriter:
+    """Cached like get_engine, not deliberately-uncached like get_entity_provider:
+    AuditWriter holds no per-principal state, only the already-cached Supabase
+    client."""
+    return AuditWriter(get_supabase())
+
+
+@lru_cache
 def get_authenticator() -> AuthenticatorChain:
     settings = get_settings()
     return AuthenticatorChain([
@@ -157,6 +169,16 @@ def build_context(request: Request, principal: Principal) -> AuthzContext:
     )
 
 
+def _org_id_for(resource: EntityRef, slice_: EntitySlice) -> str | None:
+    """The slice already carries the resource's org (Workflow/Team) or IS the org
+    (Organization) — reuse it rather than re-querying Supabase for the audit row."""
+    for entity in slice_.resources:
+        if entity.ref != resource:
+            continue
+        return entity.ref.id if isinstance(entity, OrgEntity) else entity.org.id
+    return None
+
+
 def requires(
     action: Action, resource_spec: ResourceSpec
 ) -> Callable[..., Awaitable[Authorized]]:
@@ -164,9 +186,11 @@ def requires(
 
     async def dependency(
         request: Request,
+        background_tasks: BackgroundTasks,
         principal: Annotated[Principal, Depends(get_principal)],
         engine: Annotated[PolicyEngine, Depends(get_engine)],
         provider: Annotated[SupabaseEntityProvider, Depends(get_entity_provider)],
+        writer: Annotated[AuditWriter, Depends(get_audit_writer)],
     ) -> Authorized:
         resource = resource_spec.resolve(request)
         slice_ = await provider.slice_for(principal.ref, (resource,))
@@ -205,6 +229,23 @@ def requires(
         # D6 — checked FIRST. An Allow carrying errors is the dangerous case.
         if isinstance(decision, EngineError):
             raise AuthzEngineError(decision.message)
+
+        # Off the request path: queued here, written after the response by
+        # BackgroundTasks, so a slow or failing audit write can never add latency
+        # to — or fail — the request it describes (see app/infra/audit.py).
+        if should_record(action, decision):
+            background_tasks.add_task(
+                writer.record,
+                org_id=_org_id_for(resource, slice_),
+                principal_id=principal.subject,
+                auth_method=principal.auth_method.value,
+                action=action,
+                resource_type=resource.type,
+                resource_id=resource.id,
+                decision=decision,
+                correlation_id=str(uuid.uuid4()),
+            )
+
         if not decision.allowed:
             raise AuthzDenied(decision.policy_id, action.value, resource.literal())
 
