@@ -95,6 +95,18 @@ class WorkflowExportProtectionRead(BaseModel):
     password_protected: bool
 
 
+class WorkflowAccessRequest(BaseModel):
+    """Body of the password exchange. The password is presented ONCE here, never
+    again — execution calls present the token this endpoint issues instead."""
+
+    password: str = Field(min_length=1)
+
+
+class WorkflowAccessToken(BaseModel):
+    token: str
+    expires_in: int
+
+
 class ApiKeyCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     scopes: list[str] = Field(min_length=1)

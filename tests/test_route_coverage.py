@@ -17,9 +17,8 @@ from app.main import create_app
 PUBLIC_ROUTES: set[tuple[str, str]] = {
     ("GET", "/health"),                                        # liveness probe
     ("GET", "/docs"), ("GET", "/redoc"), ("GET", "/openapi.json"),
-    # Task 19 will add:
-    # ("POST", "/v1/public/workflows/{workflow_id}/access"),     # password exchange
-    # ("POST", "/v1/public/workflows/{workflow_id}/executions"), # guarded by Cedar forbids
+    ("POST", "/v1/public/workflows/{workflow_id}/access"),      # password exchange, rate-limited
+    ("POST", "/v1/public/workflows/{workflow_id}/executions"),  # guarded by Cedar forbids
 }
 
 

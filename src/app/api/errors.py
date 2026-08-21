@@ -24,6 +24,16 @@ logger = logging.getLogger(__name__)
 _BASE = "https://stackai.example/errors"
 
 
+class RateLimited(Exception):
+    """Too many password attempts for one (workflow, client) pair (app/api/routers/
+    public.py's exchange endpoint). Maps to 429, not 403 — the caller isn't denied
+    permission, they're denied a *turn*."""
+
+    def __init__(self, retry_after_seconds: float) -> None:
+        self.retry_after_seconds = retry_after_seconds
+        super().__init__(f"rate limited, retry after {retry_after_seconds:.1f}s")
+
+
 class RoleNotFound(Exception):
     """A request body named a role that matches no row in `roles` for the given
     scope + org. Malformed input, not a database failure — mapped to 422 so it
@@ -107,6 +117,16 @@ def install_error_handlers(app: FastAPI) -> None:
             status=422, title="Unprocessable Entity", detail="Request validation failed.",
             correlation_id=str(uuid.uuid4()), errors=exc.errors(),
         )
+
+    @app.exception_handler(RateLimited)
+    async def _rate_limited(request: Request, exc: RateLimited) -> JSONResponse:
+        response = problem_response(
+            status=429, title="Too Many Requests",
+            detail="Too many password attempts for this workflow. Try again later.",
+            correlation_id=str(uuid.uuid4()),
+        )
+        response.headers["Retry-After"] = str(max(1, round(exc.retry_after_seconds)))
+        return response
 
     @app.exception_handler(RoleNotFound)
     async def _role_not_found(request: Request, exc: RoleNotFound) -> JSONResponse:

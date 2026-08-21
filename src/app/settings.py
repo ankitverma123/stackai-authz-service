@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     workflow_access_token_ttl_seconds: int = 300
     jwt_audience: str = "authenticated"
     log_level: str = "INFO"
+    #: Comma-separated peer addresses allowed to set X-Forwarded-For (public.py's
+    #: rate limiter). Trusting the header unconditionally would let an attacker
+    #: rotate the rate-limit key at will; a plain string sidesteps pydantic-settings'
+    #: JSON-decoding of list-typed env vars for what is operationally a flat list.
+    trusted_proxies: str = Field(default="", alias="TRUSTED_PROXIES")
 
 
 @lru_cache

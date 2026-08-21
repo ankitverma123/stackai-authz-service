@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.errors import install_error_handlers
-from app.api.routers import api_keys, orgs, teams, workflows
+from app.api.routers import api_keys, orgs, public, teams, workflows
 
 
 def create_app() -> FastAPI:
@@ -15,6 +15,7 @@ def create_app() -> FastAPI:
     app.include_router(teams.router)
     app.include_router(workflows.router)
     app.include_router(api_keys.router)
+    app.include_router(public.router)
 
     @app.get("/health", tags=["ops"])
     async def health() -> dict[str, str]:
