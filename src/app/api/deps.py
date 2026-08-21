@@ -15,6 +15,7 @@ from authz_core import (
     AuthzContext,
     AuthzDenied,
     AuthzEngineError,
+    Decision,
     EngineError,
     EntityRef,
     EntitySlice,
@@ -179,6 +180,35 @@ def _org_id_for(resource: EntityRef, slice_: EntitySlice) -> str | None:
     return None
 
 
+def _maybe_audit(
+    background_tasks: BackgroundTasks,
+    writer: AuditWriter,
+    *,
+    action: Action,
+    resource: EntityRef,
+    slice_: EntitySlice,
+    principal: Principal,
+    decision: Decision,
+    correlation_id: str,
+) -> None:
+    """Shared by every decision point in `requires()` — the visibility check's
+    EngineError/Deny, the action decision's EngineError, and its Allow/Deny — so
+    should_record's "Deny and EngineError always" isn't only true of the one path
+    that happens to reach the end of the function undenied."""
+    if should_record(action, decision):
+        background_tasks.add_task(
+            writer.record,
+            org_id=_org_id_for(resource, slice_),
+            principal_id=principal.subject,
+            auth_method=principal.auth_method.value,
+            action=action,
+            resource_type=resource.type,
+            resource_id=resource.id,
+            decision=decision,
+            correlation_id=correlation_id,
+        )
+
+
 def requires(
     action: Action, resource_spec: ResourceSpec
 ) -> Callable[..., Awaitable[Authorized]]:
@@ -192,6 +222,13 @@ def requires(
         provider: Annotated[SupabaseEntityProvider, Depends(get_entity_provider)],
         writer: Annotated[AuditWriter, Depends(get_audit_writer)],
     ) -> Authorized:
+        # Minted once per request, ahead of every check below, and stashed on
+        # request.state so app/api/errors.py's handlers can reuse it: an operator
+        # matching a client's correlation_id to its audit row needs both ends to
+        # share the same id, not two independently-minted uuids.
+        cid = str(uuid.uuid4())
+        request.state.correlation_id = cid
+
         resource = resource_spec.resolve(request)
         slice_ = await provider.slice_for(principal.ref, (resource,))
 
@@ -202,6 +239,11 @@ def requires(
         # instead of a 404.
         #
         # Costs one extra engine call and NO extra query: the slice is already built.
+        #
+        # NOTE: a resource absent from the slice entirely produces no Decision (no
+        # engine.authorize call happens), so there is nothing for should_record to
+        # gate on and no audit row is written here — see app/infra/audit.py's
+        # fourth limitation.
         if not any(e.ref == resource for e in slice_.resources):
             raise ResourceNotVisible(resource.literal())      # -> 404
 
@@ -213,9 +255,26 @@ def requires(
             context=build_context(request, principal),
         )
         if isinstance(visibility, EngineError):
+            # should_record(EngineError)=True: this is the fail-open case D6 exists
+            # to catch, so it must leave a trace even though it never reaches the
+            # action decision below.
+            _maybe_audit(
+                background_tasks, writer,
+                action=VISIBILITY_ACTION[resource.type], resource=resource,
+                slice_=slice_, principal=principal, decision=visibility,
+                correlation_id=cid,
+            )
             raise AuthzEngineError(visibility.message)
         if not visibility.allowed:
-            # Cannot see it at all -> deny its existence rather than its use.
+            # Cannot see it at all -> deny its existence rather than its use. Still
+            # a Deny worth recording: probing another org's resources leaves a trace
+            # even though the client only ever sees a 404.
+            _maybe_audit(
+                background_tasks, writer,
+                action=VISIBILITY_ACTION[resource.type], resource=resource,
+                slice_=slice_, principal=principal, decision=visibility,
+                correlation_id=cid,
+            )
             raise ResourceNotVisible(resource.literal())      # -> 404
 
         decision = engine.authorize(
@@ -228,23 +287,21 @@ def requires(
 
         # D6 — checked FIRST. An Allow carrying errors is the dangerous case.
         if isinstance(decision, EngineError):
+            _maybe_audit(
+                background_tasks, writer,
+                action=action, resource=resource, slice_=slice_,
+                principal=principal, decision=decision, correlation_id=cid,
+            )
             raise AuthzEngineError(decision.message)
 
         # Off the request path: queued here, written after the response by
         # BackgroundTasks, so a slow or failing audit write can never add latency
         # to — or fail — the request it describes (see app/infra/audit.py).
-        if should_record(action, decision):
-            background_tasks.add_task(
-                writer.record,
-                org_id=_org_id_for(resource, slice_),
-                principal_id=principal.subject,
-                auth_method=principal.auth_method.value,
-                action=action,
-                resource_type=resource.type,
-                resource_id=resource.id,
-                decision=decision,
-                correlation_id=str(uuid.uuid4()),
-            )
+        _maybe_audit(
+            background_tasks, writer,
+            action=action, resource=resource, slice_=slice_,
+            principal=principal, decision=decision, correlation_id=cid,
+        )
 
         if not decision.allowed:
             raise AuthzDenied(decision.policy_id, action.value, resource.literal())

@@ -3,7 +3,7 @@
 Written from a FastAPI BackgroundTask, never inline: an audit write must not add
 latency to, or be able to fail, the request it describes.
 
-Two limitations are load-bearing, not incidental — name them rather than let the
+Four limitations are load-bearing, not incidental — name them rather than let the
 word "audit" imply coverage this table doesn't have:
 
 1. **At-most-once, not exactly-once.** A row is lost if the container stops
@@ -21,6 +21,14 @@ word "audit" imply coverage this table doesn't have:
    "who viewed this workflow?", an ordinary compliance question. Denials and
    mutations are complete; successful reads are not. A per-org "verbose audit"
    flag is the natural fix.
+4. **A resource entirely absent from the principal's slice yields no audit row.**
+   `requires(...)`'s tier-1 check (is this resource in the slice at all?) raises
+   `ResourceNotVisible` before any `engine.authorize()` call is made, so there is
+   no `Decision` to hand `should_record` — auditing that path would mean
+   synthesizing a decision Cedar never rendered. The 404 is real and correct; it
+   just leaves no trace in this table. Every other Deny/EngineError produced by
+   `requires(...)` — including the visibility check once a Decision exists — is
+   recorded.
 """
 
 import logging

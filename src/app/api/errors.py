@@ -63,7 +63,10 @@ def problem_response(
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AuthzDenied)
     async def _denied(request: Request, exc: AuthzDenied) -> JSONResponse:
-        cid = str(uuid.uuid4())
+        # Reuse the id requires() minted and wrote onto the audit row (if the
+        # exception was raised there); a fresh one only for the rare exception
+        # class that never went through requires().
+        cid = getattr(request.state, "correlation_id", None) or str(uuid.uuid4())
         logger.warning(
             "authz denied", extra={"correlation_id": cid, "policy_id": exc.policy_id,
                                    "action": exc.action, "resource": exc.resource},
@@ -77,14 +80,16 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ResourceNotVisible)
     async def _not_visible(request: Request, exc: ResourceNotVisible) -> JSONResponse:
         # 404 rather than 403: a 403 would confirm the resource exists.
+        cid = getattr(request.state, "correlation_id", None) or str(uuid.uuid4())
+        logger.warning("resource not visible", extra={"correlation_id": cid})
         return problem_response(
             status=404, title="Not Found", detail="Resource not found.",
-            correlation_id=str(uuid.uuid4()),
+            correlation_id=cid,
         )
 
     @app.exception_handler(AuthzEngineError)
     async def _engine_error(request: Request, exc: AuthzEngineError) -> JSONResponse:
-        cid = str(uuid.uuid4())
+        cid = getattr(request.state, "correlation_id", None) or str(uuid.uuid4())
         logger.error("authz engine error", extra={"correlation_id": cid, "detail": str(exc)})
         return problem_response(
             status=500, title="Internal Server Error",
