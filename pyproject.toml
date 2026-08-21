@@ -1,0 +1,54 @@
+[project]
+name = "stackai-authz"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "authz-core",
+    "fastapi>=0.141",
+    "pydantic>=2.13",
+    "pydantic-settings>=2.0",
+    "supabase>=2.31",
+    "pyjwt[crypto]>=2.13",
+    "argon2-cffi>=25.1",
+    "uvicorn[standard]>=0.52",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8", "pytest-asyncio>=0.24", "httpx>=0.28",
+    "mypy>=1.11", "ruff>=0.6", "import-linter>=2.0",
+]
+
+[tool.uv.sources]
+authz-core = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests", "packages/authz-core/tests"]
+pythonpath = ["src"]
+markers = ["integration: requires a live Supabase database"]
+addopts = "-m 'not integration'"
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["src", "packages/authz-core/src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ANN", "RUF"]
+
+[tool.importlinter]
+root_packages = ["authz_core", "app"]
+
+[[tool.importlinter.contracts]]
+name = "authz_core is framework-independent"
+type = "forbidden"
+source_modules = ["authz_core"]
+forbidden_modules = ["fastapi", "starlette", "supabase", "httpx", "uvicorn", "app"]
