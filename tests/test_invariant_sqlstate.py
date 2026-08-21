@@ -13,7 +13,13 @@ class FakeAPIError(Exception):
 
 def test_known_sqlstate_becomes_an_invariant_violation() -> None:
     with pytest.raises(InvariantViolation) as exc:
-        raise_for_postgrest_error(FakeAPIError("ZA001", "raised by remove_org_member"))
+        raise_for_postgrest_error(
+            FakeAPIError(
+                "ZA001",
+                "Cannot remove the last super-admin: the organization would become "
+                "permanently unmanageable.",
+            )
+        )
     assert exc.value.name == "LastSuperAdmin"
     assert "last super-admin" in str(exc.value).lower()
 
