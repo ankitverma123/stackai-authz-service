@@ -1293,7 +1293,7 @@ wheels = [
 [[package]]
 name = "stackai-authz"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "argon2-cffi" },
     { name = "authz-core" },

@@ -13,11 +13,17 @@ dependencies = [
     "uvicorn[standard]>=0.52",
 ]
 
+[project.scripts]
+authz = "app.cli:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8", "pytest-asyncio>=0.24", "httpx>=0.28",
     "mypy>=1.11", "ruff>=0.6", "import-linter>=2.0",
 ]
+
+[tool.uv]
+package = true
 
 [tool.uv.sources]
 authz-core = { workspace = true }
