@@ -45,6 +45,12 @@ Row = dict[str, Any]
 #: protection endpoint — argon2-cffi defaults to argon2id.
 _hasher = PasswordHasher()
 
+#: Computed once at import. When a workflow has no real password_hash (unexported,
+#: or exported without a password), _verify_password still runs against THIS hash
+#: instead of short-circuiting — paying the same argon2 cost as a real mismatch, so
+#: "no password to check" and "wrong password" are indistinguishable by timing.
+_DUMMY_HASH = PasswordHasher().hash("dummy")
+
 
 class _RateLimiter:
     """Exponential backoff per key, in-memory and per-process.
@@ -121,8 +127,10 @@ async def exchange_password_for_token(
 
     # A missing/absent hash fails the same way as a wrong password: neither the
     # response nor the timing should tell an anonymous caller whether the workflow
-    # exists, is exported, or is merely unprotected.
-    if password_hash is None or not _verify_password(body.password, password_hash):
+    # exists, is exported, or is merely unprotected. Verifying against _DUMMY_HASH
+    # rather than short-circuiting on `password_hash is None` is what makes that
+    # true of the TIMING too — both paths pay one argon2 verify before failing.
+    if not _verify_password(body.password, password_hash or _DUMMY_HASH) or password_hash is None:
         _rate_limiter.record_failure(key)
         raise AuthzDenied(None, "WorkflowAccess", f"Workflow::{workflow_id}")
 
