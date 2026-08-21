@@ -3,6 +3,8 @@ on: [push, pull_request]
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3

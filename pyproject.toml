@@ -46,6 +46,7 @@ select = ["E", "F", "I", "UP", "B", "ANN", "RUF"]
 
 [tool.importlinter]
 root_packages = ["authz_core", "app"]
+include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "authz_core is framework-independent"
