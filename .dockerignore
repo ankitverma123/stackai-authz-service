@@ -7,3 +7,6 @@ __pycache__
 docs
 supabase/.branches
 supabase/.temp
+.env
+.env.*
+!.env.example
