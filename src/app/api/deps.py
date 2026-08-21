@@ -21,9 +21,11 @@ from authz_core import (
 )
 from fastapi import Depends, Request
 
+from app.auth.api_key import ApiKeyAuthenticator
 from app.auth.base import AnonymousAuthenticator, AuthenticatorChain
 from app.auth.jwt import JWTAuthenticator
 from app.auth.principal import Principal
+from app.infra.api_key_repository import SupabaseApiKeyRepository
 from app.infra.client import get_supabase
 from app.infra.entity_provider import SupabaseEntityProvider
 from app.settings import get_settings
@@ -127,6 +129,12 @@ def get_authenticator() -> AuthenticatorChain:
         JWTAuthenticator(
             secret=settings.supabase_jwt_secret, audience=settings.jwt_audience
         ),
+        # Ahead of Anonymous, behind JWT: an x-api-key header is a credential
+        # presentation like a Bearer token, so it must get its own chance before
+        # anything falls through to anonymous. ApiKeyAuthenticator.authenticate()
+        # checks for the header before touching the repository, so a request with
+        # no x-api-key header makes no DB call here.
+        ApiKeyAuthenticator(SupabaseApiKeyRepository(get_supabase())),
         AnonymousAuthenticator(),
     ])
 

@@ -93,3 +93,34 @@ class WorkflowExportProtectionUpdate(BaseModel):
 class WorkflowExportProtectionRead(BaseModel):
     workflow_id: UUID
     password_protected: bool
+
+
+class ApiKeyCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    scopes: list[str] = Field(min_length=1)
+    expires_at: datetime | None = None
+
+
+class ApiKeyCreated(BaseModel):
+    """Returned exactly once, at creation. `key_hash` never appears in a response."""
+
+    id: UUID
+    name: str
+    prefix: str
+    api_key: str
+    scopes: list[str]
+    expires_at: datetime | None
+    warning: str = "This key will not be shown again — store it securely."
+
+
+class ApiKeyRead(BaseModel):
+    """Metadata only. Never carries `key_hash`."""
+
+    id: UUID
+    name: str
+    prefix: str
+    scopes: list[str]
+    created_at: datetime
+    expires_at: datetime | None
+    revoked_at: datetime | None
+    last_used_at: datetime | None
