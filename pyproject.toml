@@ -50,6 +50,20 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ANN", "RUF"]
 
+[tool.ruff.lint.flake8-bugbear]
+# `Depends(requires(action, resource))` in a parameter default is the FastAPI
+# idiom this whole service is built on (CLAUDE.md: authz is applied exclusively
+# through the requires() dependency factory) — not the mutable-default footgun
+# B008 exists to catch.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "app.api.deps.requires",
+    "app.api.deps.requires_authenticated",
+    "app.api.deps.Resource.workflow",
+    "app.api.deps.Resource.team",
+    "app.api.deps.Resource.org",
+]
+
 [tool.importlinter]
 root_packages = ["authz_core", "app"]
 include_external_packages = true
