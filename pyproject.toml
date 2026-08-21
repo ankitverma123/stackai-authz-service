@@ -1,0 +1,81 @@
+[project]
+name = "stackai-authz"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "authz-core",
+    "fastapi>=0.141",
+    "pydantic>=2.13",
+    "pydantic-settings>=2.0",
+    "supabase>=2.31",
+    "pyjwt[crypto]>=2.13",
+    "argon2-cffi>=25.1",
+    "uvicorn[standard]>=0.52",
+]
+
+[project.scripts]
+authz = "app.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8", "pytest-asyncio>=0.24", "httpx>=0.28",
+    "mypy>=1.11", "ruff>=0.6", "import-linter>=2.0",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+authz-core = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests", "packages/authz-core/tests"]
+pythonpath = ["src"]
+markers = ["integration: requires a live Supabase database"]
+addopts = "-m 'not integration'"
+filterwarnings = [
+    # Library-level, not ours to fix: fastapi.testclient importing starlette's
+    # TestClient. Everything else should surface, so this is a targeted silence,
+    # not a blanket "ignore".
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated:starlette.exceptions.StarletteDeprecationWarning",
+]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["src", "packages/authz-core/src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ANN", "RUF"]
+
+[tool.ruff.lint.flake8-bugbear]
+# `Depends(requires(action, resource))` in a parameter default is the FastAPI
+# idiom this whole service is built on (CLAUDE.md: authz is applied exclusively
+# through the requires() dependency factory) — not the mutable-default footgun
+# B008 exists to catch.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "app.api.deps.requires",
+    "app.api.deps.requires_authenticated",
+    "app.api.deps.Resource.workflow",
+    "app.api.deps.Resource.team",
+    "app.api.deps.Resource.org",
+]
+
+[tool.importlinter]
+root_packages = ["authz_core", "app"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "authz_core is framework-independent"
+type = "forbidden"
+source_modules = ["authz_core"]
+forbidden_modules = ["fastapi", "starlette", "supabase", "httpx", "uvicorn", "app"]
