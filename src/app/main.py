@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.errors import install_error_handlers
-from app.api.routers import api_keys, authz, orgs, public, teams, workflows
+from app.api.routers import api_keys, authz, orgs, public, roles, teams, workflows
 
 
 def create_app() -> FastAPI:
@@ -15,6 +15,7 @@ def create_app() -> FastAPI:
     app.include_router(teams.router)
     app.include_router(workflows.router)
     app.include_router(api_keys.router)
+    app.include_router(roles.router)
     app.include_router(public.router)
     app.include_router(authz.router)
 

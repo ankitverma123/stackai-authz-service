@@ -139,6 +139,21 @@ class ApiKeyRead(BaseModel):
     last_used_at: datetime | None
 
 
+class RoleCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    scope: Literal["org", "team"]
+    capabilities: list[str] = Field(min_length=1)
+
+
+class RoleRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    org_id: UUID
+    name: str
+    scope: Literal["org", "team"]
+    capabilities: list[str]
+
+
 class ExplainRequest(BaseModel):
     """The (action, resource) pair to run through the real engine for debugging.
 

@@ -44,6 +44,20 @@ class RoleNotFound(Exception):
         super().__init__(f"Unknown role: {role!r}")
 
 
+class UnknownCapability(Exception):
+    """`POST /v1/orgs/{org_id}/roles` named a capability that isn't seeded.
+
+    This is the security proof for D3: roles compose EXISTING capabilities only,
+    so a role can never invent security surface. Raised BEFORE any Supabase call
+    — capabilities are validated against the `Capability` enum in authz-core,
+    which is exactly the seeded set, so this never needs the database to reject
+    a bad request."""
+
+    def __init__(self, names: list[str]) -> None:
+        self.names = names
+        super().__init__(f"Unknown capability(ies): {names!r}")
+
+
 def problem_response(
     *, status: int, title: str, detail: str, correlation_id: str, **extra: Any  # noqa: ANN401
 ) -> JSONResponse:
@@ -136,6 +150,16 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(RoleNotFound)
     async def _role_not_found(request: Request, exc: RoleNotFound) -> JSONResponse:
         # Also 422: a well-formed body referencing a role that doesn't exist.
+        return problem_response(
+            status=422, title="Unprocessable Entity", detail=str(exc),
+            correlation_id=str(uuid.uuid4()),
+        )
+
+    @app.exception_handler(UnknownCapability)
+    async def _unknown_capability(request: Request, exc: UnknownCapability) -> JSONResponse:
+        # 422: a well-formed body naming a capability that isn't seeded. Never a
+        # 500 — the whole point of D3 is that this is a validation failure, not
+        # a database failure.
         return problem_response(
             status=422, title="Unprocessable Entity", detail=str(exc),
             correlation_id=str(uuid.uuid4()),
