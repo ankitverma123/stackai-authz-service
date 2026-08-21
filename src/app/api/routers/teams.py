@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, status
 from postgrest.exceptions import APIError
 
 from app.api.deps import Authorized, Resource, get_principal, requires, requires_authenticated
+from app.api.errors import RoleNotFound
 from app.auth.principal import Principal
 from app.domain.models import (
     MembershipCreate,
@@ -52,6 +53,8 @@ def _resolve_team_role_id(client: Client, *, org_id: str, name: str) -> str:
         .execute()
         .data,
     )
+    if not rows:
+        raise RoleNotFound(name)
     for row in rows:
         if row["org_id"] == org_id:
             return str(row["id"])
@@ -184,7 +187,9 @@ async def change_team_role(
     client: Client = Depends(get_supabase),
 ) -> MembershipRead:
     """Runs LastTeamAdmin (demotion path) inside change_team_role when the new
-    role drops manage_members."""
+    role drops manage_members. The path `user_id` is authoritative; `body.user_id`
+    is unused (the same MembershipCreate model also serves POST, where the body
+    IS the target)."""
     org_id = _team_org_id(client, team_id)
     role_id = _resolve_team_role_id(client, org_id=org_id, name=body.role)
     actor_is_super_admin = _is_org_super_admin(client, org_id=org_id, user_id=principal.subject)

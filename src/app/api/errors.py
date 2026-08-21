@@ -24,6 +24,16 @@ logger = logging.getLogger(__name__)
 _BASE = "https://stackai.example/errors"
 
 
+class RoleNotFound(Exception):
+    """A request body named a role that matches no row in `roles` for the given
+    scope + org. Malformed input, not a database failure — mapped to 422 so it
+    doesn't propagate as an unhandled 500 (Task 16 fix round 1)."""
+
+    def __init__(self, role: str) -> None:
+        self.role = role
+        super().__init__(f"Unknown role: {role!r}")
+
+
 def problem_response(
     *, status: int, title: str, detail: str, correlation_id: str, **extra: Any  # noqa: ANN401
 ) -> JSONResponse:
@@ -96,4 +106,12 @@ def install_error_handlers(app: FastAPI) -> None:
         return problem_response(
             status=422, title="Unprocessable Entity", detail="Request validation failed.",
             correlation_id=str(uuid.uuid4()), errors=exc.errors(),
+        )
+
+    @app.exception_handler(RoleNotFound)
+    async def _role_not_found(request: Request, exc: RoleNotFound) -> JSONResponse:
+        # Also 422: a well-formed body referencing a role that doesn't exist.
+        return problem_response(
+            status=422, title="Unprocessable Entity", detail=str(exc),
+            correlation_id=str(uuid.uuid4()),
         )

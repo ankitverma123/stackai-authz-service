@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, status
 from postgrest.exceptions import APIError
 
 from app.api.deps import Authorized, Resource, requires
+from app.api.errors import RoleNotFound
 from app.domain.models import MembershipCreate, MembershipRead
 from app.infra.client import get_supabase
 from app.invariants.sqlstate import raise_for_postgrest_error
@@ -35,6 +36,8 @@ def _resolve_org_role_id(client: Client, *, org_id: UUID, name: str) -> str:
         .execute()
         .data,
     )
+    if not rows:
+        raise RoleNotFound(name)
     for row in rows:
         if row["org_id"] == str(org_id):
             return str(row["id"])
@@ -86,7 +89,9 @@ async def change_org_role(
     _: Authorized = Depends(requires(Action.ORG_CHANGE_ROLE, Resource.org())),
     client: Client = Depends(get_supabase),
 ) -> MembershipRead:
-    """Runs LastSuperAdmin inside change_org_role when the new role drops manage_org."""
+    """Runs LastSuperAdmin inside change_org_role when the new role drops manage_org.
+    The path `user_id` is authoritative; `body.user_id` is unused (the same
+    MembershipCreate model also serves POST, where the body IS the target)."""
     role_id = _resolve_org_role_id(client, org_id=org_id, name=body.role)
     try:
         client.rpc(
