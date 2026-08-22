@@ -173,7 +173,12 @@ class SupabaseEntityProvider:
                 .data,
             )
             for row in workflow_rows:
-                export = (row.get("workflow_exports") or [None])[0]
+                # workflow_exports is a to-one relationship (its PK IS workflow_id),
+                # so PostgREST embeds it as a single object, or null when absent —
+                # never a list. Indexing with [0] raised KeyError: 0 on every
+                # exported workflow.
+                raw_export = row.get("workflow_exports")
+                export = raw_export[0] if isinstance(raw_export, list) else raw_export
                 entities.append(self.build_workflow_entity(row, export))
                 org_ids.add(row["org_id"])
 

@@ -30,6 +30,40 @@ class FakeClient:
         return FakeTable(self._tables.get(name, []))
 
 
+async def test_slice_for_reads_object_shaped_export_embed() -> None:
+    """PostgREST returns the to-one `workflow_exports` embed as a single OBJECT (or
+    null when absent), never a list. slice_for indexed it with [0], raising
+    KeyError: 0 on every workflow that has an export row — so every exported
+    workflow 500'd on authenticated read and on the public run."""
+    client = FakeClient(
+        {
+            "team_memberships": [],
+            "org_memberships": [],
+            "workflows": [
+                {
+                    "id": "wf-1",
+                    "org_id": "org-1",
+                    "team_id": "team-1",
+                    "workflow_exports": {
+                        "is_exported": True,
+                        "visibility": "public",
+                        "password_hash": None,
+                    },
+                },
+            ],
+        }
+    )
+    provider = SupabaseEntityProvider(client)  # type: ignore[arg-type]
+
+    entity_slice = await provider.slice_for(
+        EntityRef("User", "11111111-1111-1111-1111-111111111111"),
+        (EntityRef("Workflow", "wf-1"),),
+    )
+
+    workflows = [r for r in entity_slice.resources if isinstance(r, WorkflowEntity)]
+    assert workflows[0].to_cedar()["attrs"]["exported"] is True
+
+
 async def test_workflow_without_export_row_gets_defaults() -> None:
     """A workflow with no workflow_exports row must still emit exported/visibility/
     password_protected. Omitting them makes `must-be-exported` error and be SKIPPED,
