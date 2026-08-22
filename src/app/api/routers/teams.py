@@ -101,6 +101,28 @@ async def create_team(
 
 
 @router.get(
+    "/orgs/{org_id}/teams",
+    response_model=list[TeamRead],
+    summary="List all teams in an organization",
+    description=(
+        "Lists every team in the org (including the default `General` team). "
+        "**Requires** `ORG_VIEW` — any member of the org may see its teams; a "
+        "non-member gets **404** (the org's existence is hidden)."
+    ),
+)
+async def list_org_teams(
+    org_id: UUID,
+    _: Authorized = Depends(requires(Action.ORG_VIEW, Resource.org())),
+    client: Client = Depends(get_supabase),
+) -> list[TeamRead]:
+    rows = cast(
+        list[Row],
+        client.table("teams").select("*").eq("org_id", str(org_id)).order("name").execute().data,
+    )
+    return [TeamRead.model_validate(r) for r in rows]
+
+
+@router.get(
     "/me/teams",
     response_model=list[TeamMembershipRead],
     summary="List the teams I belong to (and my role in each)",
@@ -160,6 +182,29 @@ async def add_team_member(
         {"team_id": str(team_id), "user_id": str(body.user_id), "role_id": role_id}
     ).execute()
     return MembershipRead(user_id=body.user_id, role=body.role)
+
+
+@router.delete(
+    "/teams/{team_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a team",
+    description=(
+        "Deletes a team (and its memberships). **Requires** `TEAM_DELETE` (team "
+        "admin or org super-admin). Returns **409** if the team is the org's default "
+        "`General` team, which holds org-level shared resources and cannot be deleted."
+    ),
+)
+async def delete_team(
+    team_id: UUID,
+    _: Authorized = Depends(requires(Action.TEAM_DELETE, Resource.team())),
+    client: Client = Depends(get_supabase),
+) -> None:
+    """Routed through the delete_team RPC so the default-team protection (ZA003 ->
+    409) runs atomically with the delete."""
+    try:
+        client.rpc("delete_team", {"p_team_id": str(team_id)}).execute()
+    except APIError as exc:
+        raise_for_postgrest_error(exc)
 
 
 @router.delete(

@@ -1,8 +1,11 @@
+from collections.abc import Iterable, Iterator
 from typing import Any
 
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
+from fastapi.routing import APIRoute
 
+from app.api.deps import AUTHZ_DEPENDENCY_MARKER
 from app.api.errors import install_error_handlers
 from app.api.routers import api_keys, authz, orgs, public, roles, teams, workflows
 
@@ -64,6 +67,36 @@ TAGS_METADATA: list[dict[str, str]] = [
 ]
 
 
+def _iter_api_routes(routes: Iterable[Any]) -> Iterator[APIRoute]:
+    """Yield every APIRoute, descending into include_router() wrappers (fastapi>=0.141
+    wraps them as `_IncludedRouter` placeholders instead of flattening)."""
+    for route in routes:
+        if isinstance(route, APIRoute):
+            yield route
+            continue
+        sub_router = getattr(route, "original_router", None)
+        sub_routes = getattr(sub_router, "routes", None) or getattr(route, "routes", None)
+        if sub_routes:
+            yield from _iter_api_routes(sub_routes)
+
+
+def _public_operations(app: FastAPI) -> set[tuple[str, str]]:
+    """(METHOD, path) for every operation with no `requires(...)`/`requires_authenticated()`
+    dependency — i.e. the genuinely unauthenticated routes (health + the /public flows).
+    Derived from the same authz marker the route-coverage test uses, so it stays in
+    sync with what is actually guarded."""
+    ops: set[tuple[str, str]] = set()
+    for route in _iter_api_routes(app.routes):
+        guarded = any(
+            getattr(getattr(dep, "call", None), AUTHZ_DEPENDENCY_MARKER, False)
+            for dep in route.dependant.dependencies
+        )
+        if not guarded:
+            for method in (route.methods or set()) - {"HEAD", "OPTIONS"}:
+                ops.add((method, route.path))
+    return ops
+
+
 def _install_bearer_scheme(app: FastAPI) -> None:
     """Add an http-bearer security scheme to the OpenAPI document.
 
@@ -98,6 +131,12 @@ def _install_bearer_scheme(app: FastAPI) -> None:
             }
         }
         schema["security"] = [{"bearerAuth": []}]
+        # Clear the global requirement on genuinely public operations so Swagger does
+        # not draw a padlock on /health and the /public flows (they take no token).
+        for method, path in _public_operations(app):
+            operation = schema["paths"].get(path, {}).get(method.lower())
+            if operation is not None:
+                operation["security"] = []
         app.openapi_schema = schema
         return schema
 
@@ -114,6 +153,7 @@ def create_app() -> FastAPI:
     app.include_router(orgs.router)
     app.include_router(teams.router)
     app.include_router(workflows.router)
+    app.include_router(workflows.publishing_router)
     app.include_router(api_keys.router)
     app.include_router(roles.router)
     app.include_router(public.router)

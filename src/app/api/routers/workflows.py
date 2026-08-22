@@ -53,6 +53,12 @@ from supabase import Client
 
 router = APIRouter(prefix="/v1", tags=["3 · Workflows"])
 
+#: Publish/export operations live on their own router so they appear ONLY under the
+#: "Publishing" group in Swagger. A per-route `tags=` on the main router would be
+#: MERGED with its "3 · Workflows" tag (FastAPI unions them), showing each export
+#: endpoint under both groups.
+publishing_router = APIRouter(prefix="/v1", tags=["4 · Publishing & external access"])
+
 Row = dict[str, Any]
 
 #: Starting points (brief §17): trades a slightly larger fetch for far fewer
@@ -273,10 +279,27 @@ async def run_workflow(
     )
 
 
-@router.put(
+@router.delete(
+    "/workflows/{workflow_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a workflow",
+    description=(
+        "Deletes a workflow. **Requires** `WORKFLOW_DELETE` (team admin, or org "
+        "super-admin anywhere in their org). A viewer/editor gets **403**; a "
+        "workflow not visible to the caller gets **404**."
+    ),
+)
+async def delete_workflow(
+    workflow_id: UUID,
+    _: Authorized = Depends(requires(Action.WORKFLOW_DELETE, Resource.workflow())),
+    client: Client = Depends(get_supabase),
+) -> None:
+    client.table("workflows").delete().eq("id", str(workflow_id)).execute()
+
+
+@publishing_router.put(
     "/workflows/{workflow_id}/export",
     response_model=WorkflowExportRead,
-    tags=["4 · Publishing & external access"],
     summary="Publish (export) a workflow",
     description=(
         "Makes a workflow runnable by external/unauthenticated users. **Requires** "
@@ -311,10 +334,9 @@ async def set_workflow_export(
     )
 
 
-@router.delete(
+@publishing_router.delete(
     "/workflows/{workflow_id}/export",
     status_code=status.HTTP_204_NO_CONTENT,
-    tags=["4 · Publishing & external access"],
     summary="Unpublish a workflow",
     description=(
         "Stops external access (sets `is_exported=false`). **Requires** "
@@ -333,10 +355,9 @@ async def unset_workflow_export(
     ).execute()
 
 
-@router.put(
+@publishing_router.put(
     "/workflows/{workflow_id}/export/protection",
     response_model=WorkflowExportProtectionRead,
-    tags=["4 · Publishing & external access"],
     summary="Set or clear an export password",
     description=(
         "Password-protects a published workflow (extra point 3). **Requires** "
