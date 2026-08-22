@@ -267,10 +267,12 @@ signup (auto-creates the `profiles` row via the `handle_new_user` trigger), inse
 (see the Quickstart), then mint a token with `grant_type=password`. Insert teams with
 `created_by = null` to skip the `team_creator_is_admin` trigger.
 
-**One-command demo.** `scripts/dev_seed.sh` does all of that idempotently — creates a demo
-super-admin user, seeds an org/team/workflow, and prints a ready-to-use access token. Then open
-Swagger at **http://127.0.0.1:8000/docs**, click **Authorize**, paste the token, and call any
-endpoint from the UI.
+**One-command demo.** `scripts/dev_seed.sh` does all of that idempotently — creates three users
+(super-admin, editor, viewer), seeds an org / two teams / two workflows, and prints a ready-to-use
+access token for each. Then open Swagger at **http://127.0.0.1:8000/docs**, click **Authorize**, paste
+a token, and call any endpoint from the UI. The endpoints are grouped and ordered as a walkthrough;
+[`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) is the api-by-api recording script (with the allow-vs-deny story
+and full assignment-coverage map).
 
 **Gotchas.**
 

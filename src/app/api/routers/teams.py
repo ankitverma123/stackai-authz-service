@@ -27,7 +27,7 @@ from app.infra.lookups import team_org_id as _team_org_id
 from app.invariants.sqlstate import raise_for_postgrest_error
 from supabase import Client
 
-router = APIRouter(prefix="/v1", tags=["teams"])
+router = APIRouter(prefix="/v1", tags=["2 · Teams"])
 
 Row = dict[str, Any]
 
@@ -75,6 +75,11 @@ def _is_org_super_admin(client: Client, *, org_id: str, user_id: str) -> bool:
     "/orgs/{org_id}/teams",
     status_code=status.HTTP_201_CREATED,
     response_model=TeamRead,
+    summary="Create a team",
+    description=(
+        "Creates a team in the org. **Requires** `TEAM_CREATE` (org `member` or "
+        "`super_admin`). The creator is atomically made the team's admin."
+    ),
 )
 async def create_team(
     org_id: UUID,
@@ -95,7 +100,15 @@ async def create_team(
     return TeamRead.model_validate(row)
 
 
-@router.get("/me/teams", response_model=list[TeamMembershipRead])
+@router.get(
+    "/me/teams",
+    response_model=list[TeamMembershipRead],
+    summary="List the teams I belong to (and my role in each)",
+    description=(
+        "Returns the **caller's own** team memberships with their role in each. "
+        "Requires authentication only — the principal is the entire scope."
+    ),
+)
 async def list_my_teams(
     principal: Principal = Depends(get_principal),
     _: Authorized = Depends(requires_authenticated()),
@@ -127,6 +140,11 @@ async def list_my_teams(
     "/teams/{team_id}/members",
     status_code=status.HTTP_201_CREATED,
     response_model=MembershipRead,
+    summary="Add a user to a team",
+    description=(
+        "Adds a user to the team with a team-level role (`viewer`, `editor`, or "
+        "`admin`). **Requires** `TEAM_ADD_MEMBER` (team admin or org super-admin)."
+    ),
 )
 async def add_team_member(
     team_id: UUID,
@@ -144,7 +162,16 @@ async def add_team_member(
     return MembershipRead(user_id=body.user_id, role=body.role)
 
 
-@router.delete("/teams/{team_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/teams/{team_id}/members/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove a user from a team",
+    description=(
+        "Removes a member from the team. **Requires** `TEAM_REMOVE_MEMBER`. Returns "
+        "**409** if it would remove the last team admin (an org super-admin may "
+        "override) or if it targets the org's default team."
+    ),
+)
 async def remove_team_member(
     team_id: UUID,
     user_id: UUID,
@@ -169,7 +196,15 @@ async def remove_team_member(
         raise_for_postgrest_error(exc)
 
 
-@router.patch("/teams/{team_id}/members/{user_id}", response_model=MembershipRead)
+@router.patch(
+    "/teams/{team_id}/members/{user_id}",
+    response_model=MembershipRead,
+    summary="Change a user's team role",
+    description=(
+        "Changes a member's team-level role. **Requires** `TEAM_CHANGE_ROLE`. "
+        "Returns **409** if demoting the last team admin (org super-admin may override)."
+    ),
+)
 async def change_team_role(
     team_id: UUID,
     user_id: UUID,

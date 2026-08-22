@@ -29,7 +29,7 @@ from app.domain.models import ApiKeyCreate, ApiKeyCreated, ApiKeyRead
 from app.infra.client import get_supabase
 from supabase import Client
 
-router = APIRouter(prefix="/v1", tags=["api-keys"])
+router = APIRouter(prefix="/v1", tags=["5 · API keys"])
 
 Row = dict[str, Any]
 
@@ -67,6 +67,14 @@ def _to_read(row: Row) -> ApiKeyRead:
     "/orgs/{org_id}/api-keys",
     status_code=status.HTTP_201_CREATED,
     response_model=ApiKeyCreated,
+    summary="Mint an API key (scoped, lower privilege than login)",
+    description=(
+        "Creates a machine credential (extra point 2). An API key is deliberately "
+        "*less* powerful than the owner's login: it is confined to `workflow:run` / "
+        "`workflow:read` scopes, a single org, and can never perform governance "
+        "(no team/role/key management). **Requires** `API_KEY_CREATE`. The full key "
+        "is returned once here and never again."
+    ),
 )
 async def create_api_key(
     org_id: UUID,
@@ -108,7 +116,12 @@ async def create_api_key(
     )
 
 
-@router.get("/orgs/{org_id}/api-keys", response_model=list[ApiKeyRead])
+@router.get(
+    "/orgs/{org_id}/api-keys",
+    response_model=list[ApiKeyRead],
+    summary="List an organization's API keys (metadata only)",
+    description="Lists key metadata (never the secret). **Requires** `API_KEY_CREATE`.",
+)
 async def list_api_keys(
     org_id: UUID,
     _: Authorized = Depends(requires(Action.API_KEY_CREATE, Resource.org())),
@@ -130,7 +143,15 @@ async def list_api_keys(
     return [_to_read(row) for row in rows]
 
 
-@router.delete("/orgs/{org_id}/api-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/orgs/{org_id}/api-keys/{key_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Revoke an API key",
+    description=(
+        "Revokes a key. **Requires** `API_KEY_REVOKE`. Scoped by org so a key id "
+        "from another org can't be revoked here."
+    ),
+)
 async def revoke_api_key(
     org_id: UUID,
     key_id: UUID,

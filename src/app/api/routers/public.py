@@ -37,7 +37,7 @@ from app.infra.entity_provider import SupabaseEntityProvider
 from app.settings import Settings, get_settings
 from supabase import Client
 
-router = APIRouter(prefix="/v1/public", tags=["public"])
+router = APIRouter(prefix="/v1/public", tags=["4 · Publishing & external access"])
 
 Row = dict[str, Any]
 
@@ -100,7 +100,18 @@ def _client_ip(request: Request, settings: Settings) -> str:
     return peer
 
 
-@router.post("/workflows/{workflow_id}/access", status_code=status.HTTP_200_OK)
+@router.post(
+    "/workflows/{workflow_id}/access",
+    status_code=status.HTTP_200_OK,
+    summary="Exchange an export password for a run token (external user)",
+    description=(
+        "**Unauthenticated.** For a password-protected published workflow, exchange "
+        "the password for a short-lived token, then pass it as `X-Workflow-Token` to "
+        "the run endpoint below. Rate-limited with exponential backoff. A wrong "
+        "password — or an unprotected/nonexistent workflow — returns 403 identically "
+        "(existence and protection state are not disclosed)."
+    ),
+)
 async def exchange_password_for_token(
     workflow_id: UUID,
     body: WorkflowAccessRequest,
@@ -154,6 +165,13 @@ def _verify_password(password: str, hashed: str) -> bool:
     "/workflows/{workflow_id}/executions",
     status_code=status.HTTP_201_CREATED,
     response_model=WorkflowExecutionRead,
+    summary="Run an exported workflow (external user, no login)",
+    description=(
+        "**Unauthenticated.** Runs a workflow that has been published. Cedar `forbid` "
+        "rules decide: the workflow must be exported (else 404/403), a password "
+        "-protected one needs `X-Workflow-Token` from `/access`, and an `org_only` "
+        "one requires the caller to be an org member. This is the external-user path."
+    ),
 )
 async def execute_exported_workflow(
     workflow_id: UUID,

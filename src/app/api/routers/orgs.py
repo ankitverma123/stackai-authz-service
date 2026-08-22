@@ -18,7 +18,7 @@ from app.infra.client import get_supabase
 from app.invariants.sqlstate import raise_for_postgrest_error
 from supabase import Client
 
-router = APIRouter(prefix="/v1", tags=["orgs"])
+router = APIRouter(prefix="/v1", tags=["1 · Organizations"])
 
 Row = dict[str, Any]
 
@@ -48,6 +48,13 @@ def _resolve_org_role_id(client: Client, *, org_id: UUID, name: str) -> str:
     "/orgs/{org_id}/members",
     status_code=status.HTTP_201_CREATED,
     response_model=MembershipRead,
+    summary="Add a user to an organization",
+    description=(
+        "Adds a user to the org with an org-level role (`member` or `super_admin`). "
+        "**Requires** the `ORG_ADD_USER` capability (a super-admin). The new member "
+        "is auto-enrolled in the org's default team as a viewer. Returns 403 if the "
+        "caller lacks permission, 404 if the org is not visible to them."
+    ),
 )
 async def add_org_member(
     org_id: UUID,
@@ -65,7 +72,16 @@ async def add_org_member(
     return MembershipRead(user_id=body.user_id, role=body.role)
 
 
-@router.delete("/orgs/{org_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/orgs/{org_id}/members/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove a user from an organization",
+    description=(
+        "Removes a member from the org (cascading them out of the org's teams). "
+        "**Requires** `ORG_REMOVE_USER`. Returns **409** if this would remove the "
+        "last super-admin — the org must never become unmanageable."
+    ),
+)
 async def remove_org_member(
     org_id: UUID,
     user_id: UUID,
@@ -81,7 +97,16 @@ async def remove_org_member(
         raise_for_postgrest_error(exc)
 
 
-@router.patch("/orgs/{org_id}/members/{user_id}", response_model=MembershipRead)
+@router.patch(
+    "/orgs/{org_id}/members/{user_id}",
+    response_model=MembershipRead,
+    summary="Change a user's organization role",
+    description=(
+        "Changes a member's org-level role (e.g. `super_admin` ↔ `member`). "
+        "**Requires** `ORG_CHANGE_ROLE`. Returns **409** if demoting the last "
+        "super-admin. The path `user_id` is the target; `body.user_id` is ignored."
+    ),
+)
 async def change_org_role(
     org_id: UUID,
     user_id: UUID,

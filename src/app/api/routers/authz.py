@@ -34,10 +34,20 @@ from app.auth.principal import Principal
 from app.domain.models import ExplainRequest, ExplainResponse
 from app.infra.entity_provider import SupabaseEntityProvider
 
-router = APIRouter(prefix="/v1", tags=["authz"])
+router = APIRouter(prefix="/v1", tags=["7 · Authorization (explain)"])
 
 
-@router.post("/authz/explain", response_model=ExplainResponse)
+@router.post(
+    "/authz/explain",
+    response_model=ExplainResponse,
+    summary="Explain an authorization decision (returns the deciding policy_id)",
+    description=(
+        "Debug/transparency endpoint: returns ALLOW/DENY plus the deciding Cedar "
+        "`policy_id` for a (principal, action, resource). This is the ONE place a "
+        "policy_id is disclosed — every other endpoint hides it behind a correlation "
+        "id — so the disclosure is authenticated and intentional."
+    ),
+)
 async def explain(
     request: Request,
     body: ExplainRequest,
