@@ -72,6 +72,23 @@ def test_denied_request_is_audited(app_with_denied_engine: FastAPI) -> None:
     assert recorded[0]["decision"].allowed is False  # type: ignore[attr-defined]
 
 
+def test_anonymous_request_to_protected_route_returns_401(app_with_denied_engine: FastAPI) -> None:
+    """§9's error table: no/invalid credentials on a protected route -> 401. A
+    requires(action, resource) route must reject an anonymous caller with 401
+    before the visibility check, the same way requires_authenticated() does — not
+    fall through to a 403/404 (or, on a real DB, an entity-provider crash)."""
+    from app.api.deps import get_principal
+    from app.auth.principal import ANONYMOUS_PRINCIPAL
+
+    app_with_denied_engine.dependency_overrides[get_principal] = lambda: ANONYMOUS_PRINCIPAL
+    client = TestClient(app_with_denied_engine, raise_server_exceptions=False)
+
+    response = client.get("/guarded/org-1")
+
+    assert response.status_code == 401
+    assert response.headers.get("WWW-Authenticate") == "Bearer"
+
+
 def test_engine_error_returns_500_not_403(app_with_erroring_engine: FastAPI) -> None:
     """D6. A schema bug must never masquerade as a legitimate permission denial,
     and an errored forbid must never surface as a quiet allow."""

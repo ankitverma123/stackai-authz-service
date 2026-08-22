@@ -227,6 +227,15 @@ def requires(action: Action, resource_spec: ResourceSpec) -> Callable[..., Await
         provider: Annotated[SupabaseEntityProvider, Depends(get_entity_provider)],
         writer: Annotated[AuditWriter, Depends(get_audit_writer)],
     ) -> Authorized:
+        # No/invalid credentials on a protected route -> 401 (spec §9), before the
+        # visibility check. Otherwise an anonymous caller falls through to a 404 (or,
+        # against a real DB, an entity-provider lookup keyed on the non-uuid
+        # "anonymous" subject) — neither of which is the "you must authenticate"
+        # answer the error table requires. Public routes do not use requires(); they
+        # authorize an anonymous principal explicitly (app/api/routers/public.py).
+        if principal.is_anonymous:
+            raise AuthenticationFailed("Bearer", "authentication required")
+
         # Minted once per request, ahead of every check below, and stashed on
         # request.state so app/api/errors.py's handlers can reuse it: an operator
         # matching a client's correlation_id to its audit row needs both ends to

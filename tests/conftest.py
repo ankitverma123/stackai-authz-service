@@ -23,9 +23,11 @@ from app.api.deps import (
     get_audit_writer,
     get_engine,
     get_entity_provider,
+    get_principal,
     requires,
 )
 from app.api.errors import install_error_handlers
+from app.auth.principal import AuthMethod, Principal
 
 # get_principal() (app/api/deps.py) calls get_authenticator() as a plain function,
 # not through FastAPI's dependency-injection graph, so `dependency_overrides`
@@ -103,6 +105,12 @@ def _app(decision: Decision) -> FastAPI:
     app.dependency_overrides[get_engine] = lambda: StubEngine(decision)
     app.dependency_overrides[get_entity_provider] = lambda: StubProvider()
     app.dependency_overrides[get_audit_writer] = lambda: _NoopAuditWriter()
+    # requires() now 401s an anonymous principal before reaching the engine, so these
+    # decision-path fixtures need an authenticated one. A test that specifically
+    # exercises the anonymous 401 overrides this back to ANONYMOUS_PRINCIPAL.
+    app.dependency_overrides[get_principal] = lambda: Principal(
+        subject="00000000-0000-0000-0000-000000000009", auth_method=AuthMethod.JWT
+    )
     return app
 
 
