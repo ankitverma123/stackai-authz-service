@@ -241,6 +241,42 @@ enters the token, so every item below attaches at the identity edge only:
 
 Responses use RFC 9457 `application/problem+json`.
 
+## Local development & testing
+
+**What CI covers.** `uv run pytest` runs the unit suite (`ruff`, `mypy`, `lint-imports`, and tests).
+It exercises `authz-core` thoroughly, but **stubs the entire `app ↔ Supabase/GoTrue` seam** —
+`get_engine`, `get_entity_provider`, `get_audit_writer`, and `get_supabase` are overridden in tests.
+The files under `tests/integration/` are intended-behaviour **skeletons** (they reference
+`client`/`authed`/`jwt` fixtures that don't exist yet), so `pytest -m integration` does not run.
+Net: the infra adapter, auth chain, and error/audit plumbing are not covered by automated tests —
+verify changes there against a live stack using the runbook below.
+
+**Running end-to-end against local Supabase.** Modern `supabase start` signs user JWTs with **ES256**
+(asymmetric), so the app verifies them via JWKS (`SUPABASE_JWKS_URL`).
+
+```bash
+supabase start                         # Postgres + PostgREST + GoTrue (needs Docker)
+supabase status -o env                 # copy API_URL, SERVICE_ROLE_KEY (legacy eyJ… key), JWT_SECRET, ANON_KEY into .env
+supabase db reset                      # applies ALL migrations incl. the service_role grants (0500)
+PYTHONPATH=src uv run uvicorn app.main:app --port 8000
+```
+
+`.env` must set `SUPABASE_JWKS_URL=$SUPABASE_URL/auth/v1/.well-known/jwks.json` (preset in
+`.env.example`) or real user tokens won't verify. No demo accounts are seeded — create one via GoTrue
+signup (auto-creates the `profiles` row via the `handle_new_user` trigger), insert an org membership
+(see the Quickstart), then mint a token with `grant_type=password`. Insert teams with
+`created_by = null` to skip the `team_creator_is_admin` trigger.
+
+**Gotchas.**
+
+- A local `.env` makes `tests/test_settings.py::test_settings_reject_missing_service_role_key` fail —
+  pydantic-settings reads the file, so the "missing key" assertion no longer holds. CI has no `.env`;
+  move it aside to reproduce CI locally.
+- PostgREST embeds a **to-one** relationship (e.g. `workflow_exports`, whose PK *is* the FK) as a
+  single **object**, or `null` when absent — never a list.
+- `service_role` needs explicit table GRANTs (RLS is bypassed by design, so no default privileges);
+  these ship in `supabase/migrations/20260820000500_service_role_grants.sql`.
+
 ## More detail
 
 - [`docs/DECISION_MATRIX.md`](docs/DECISION_MATRIX.md) — every role × action × resource-state case, generated from the tests, not hand-written.
