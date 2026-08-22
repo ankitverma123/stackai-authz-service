@@ -15,6 +15,33 @@ def test_every_operation_has_a_summary_and_description() -> None:
     assert not undocumented, f"operations missing summary/description: {undocumented}"
 
 
+def test_public_operations_have_no_padlock_but_guarded_ones_do() -> None:
+    """The global bearer scheme would otherwise draw a padlock on every operation,
+    including /health and the unauthenticated /public flows. Those must carry an
+    empty `security` (no padlock); genuinely guarded routes keep the global one."""
+    schema = create_app().openapi()
+
+    # Public: no auth.
+    assert schema["paths"]["/health"]["get"]["security"] == []
+    assert (
+        schema["paths"]["/v1/public/workflows/{workflow_id}/executions"]["post"]["security"] == []
+    )
+    # Guarded: inherits the global bearer requirement (no per-op override).
+    assert "security" not in schema["paths"]["/v1/workflows/{workflow_id}"]["put"]
+
+
+def test_export_endpoints_appear_only_under_publishing() -> None:
+    """Publish/unpublish/protection belong to the Publishing group, not also to
+    Workflows — a per-route tag on the workflows router would union the two."""
+    schema = create_app().openapi()
+    for path, method in [
+        ("/v1/workflows/{workflow_id}/export", "put"),
+        ("/v1/workflows/{workflow_id}/export", "delete"),
+        ("/v1/workflows/{workflow_id}/export/protection", "put"),
+    ]:
+        assert schema["paths"][path][method]["tags"] == ["4 · Publishing & external access"]
+
+
 def test_tag_groups_render_in_demo_order() -> None:
     """The docs are ordered as a recording walkthrough; the OpenAPI `tags` array is
     what Swagger UI uses to order the groups. Keep it deliberate, not incidental."""

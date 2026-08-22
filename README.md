@@ -265,7 +265,9 @@ PYTHONPATH=src uv run uvicorn app.main:app --port 8000
 `.env.example`) or real user tokens won't verify. No demo accounts are seeded — create one via GoTrue
 signup (auto-creates the `profiles` row via the `handle_new_user` trigger), insert an org membership
 (see the Quickstart), then mint a token with `grant_type=password`. Insert teams with
-`created_by = null` to skip the `team_creator_is_admin` trigger.
+`created_by = null` to skip the `team_creator_is_admin` trigger. Creating an organization
+auto-creates its default `General` team (trigger `org_gets_default_team`), and every org member is
+enrolled in it — the assignment's org-level shared team.
 
 **One-command demo.** `scripts/dev_seed.sh` does all of that idempotently — creates three users
 (super-admin, editor, viewer), seeds an org / two teams / two workflows, and prints a ready-to-use

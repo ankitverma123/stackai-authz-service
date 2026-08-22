@@ -55,9 +55,11 @@ The assignment's **Organization** endpoints. Narrate: only a super-admin may man
 ### 2 · Teams
 The assignment's **Teams** endpoints.
 - *(super-admin)* `POST /v1/orgs/{org_id}/teams` — create a team. → **201** (creator becomes its admin).
+- *(any member)* `GET /v1/orgs/{org_id}/teams` — list **all** teams in the org. Note the **General** team: it's the org's default team, auto-created with the org, and every org member belongs to it (assignment's "shared org-level team"). → **200**.
 - *(any user)* `GET /v1/me/teams` — list the caller's teams + role. Authorize as **viewer**, then as **editor** — different results, same endpoint. → **200**.
 - *(team admin / super-admin)* `POST /v1/teams/{team_id}/members` — add a user to Team One. → **201**.
 - `DELETE /v1/teams/{team_id}/members/{user_id}` / `PATCH …/members/{user_id}` — remove / change team role. → **204 / 200**.
+- `DELETE /v1/teams/{team_id}` — delete a team. → **204**; deleting the **General** default team → **409** (holds org-level shared resources).
 
 ### 3 · Workflows  *(the core allow/deny story)*
 The assignment's **Workflow** endpoints. This is the heart of the demo — same id, different roles.
@@ -69,6 +71,8 @@ The assignment's **Workflow** endpoints. This is the heart of the demo — same 
 - `PUT /v1/workflows/{WF_ONE}` (edit):
   - as **editor** → **200**.
   - as **viewer** → **403** — visible, but no edit permission. *(This 403 vs the 404 above is the key distinction to narrate.)*
+- `DELETE /v1/workflows/{id}` (delete):
+  - as **viewer/editor** → **403**; as **super-admin** (or team admin) → **204**. Super-admin can delete any workflow in the org — "delete all resources regardless of team."
 - `POST /v1/workflows/{WF_ONE}/executions` (run, logged-in):
   - as **viewer** → **201** (viewer may run).
 - Logged-out: with **no token** (hit *Logout* in Authorize), `GET /v1/workflows/{WF_ONE}` → **401**.
@@ -102,6 +106,9 @@ Answers "run by viewer/external user depending on whether it's exported."
 | Teams — list teams a user belongs to + role | `GET /v1/me/teams` | 2 |
 | Teams — add user to team | `POST /v1/teams/{team_id}/members` | 2 |
 | Teams — remove user from team | `DELETE /v1/teams/{team_id}/members/{user_id}` | 2 |
+| Teams — default team (auto-created, all members belong) | trigger `org_gets_default_team` + `GET /v1/orgs/{org_id}/teams` | 2 |
+| Bonus — list all teams in an org | `GET /v1/orgs/{org_id}/teams` | 2 |
+| Bonus — delete a team / a workflow | `DELETE /v1/teams/{id}` · `DELETE /v1/workflows/{id}` | 2 · 3 |
 | Org — add user to org | `POST /v1/orgs/{org_id}/members` | 1 |
 | Org — delete user from org | `DELETE /v1/orgs/{org_id}/members/{user_id}` | 1 |
 | Org — change org-level role | `PATCH /v1/orgs/{org_id}/members/{user_id}` | 1 |
