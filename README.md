@@ -267,6 +267,11 @@ signup (auto-creates the `profiles` row via the `handle_new_user` trigger), inse
 (see the Quickstart), then mint a token with `grant_type=password`. Insert teams with
 `created_by = null` to skip the `team_creator_is_admin` trigger.
 
+**One-command demo.** `scripts/dev_seed.sh` does all of that idempotently — creates a demo
+super-admin user, seeds an org/team/workflow, and prints a ready-to-use access token. Then open
+Swagger at **http://127.0.0.1:8000/docs**, click **Authorize**, paste the token, and call any
+endpoint from the UI.
+
 **Gotchas.**
 
 - A local `.env` makes `tests/test_settings.py::test_settings_reject_missing_service_role_key` fail —
