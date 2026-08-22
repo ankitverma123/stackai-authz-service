@@ -51,7 +51,7 @@ from app.infra.lookups import team_org_id as _team_org_id
 from app.infra.prefilter import build_workflow_prefilter
 from supabase import Client
 
-router = APIRouter(prefix="/v1", tags=["workflows"])
+router = APIRouter(prefix="/v1", tags=["3 · Workflows"])
 
 Row = dict[str, Any]
 
@@ -72,6 +72,11 @@ _hasher = PasswordHasher()
     "/teams/{team_id}/workflows",
     status_code=status.HTTP_201_CREATED,
     response_model=WorkflowRead,
+    summary="Create a workflow",
+    description=(
+        "Creates a workflow in the team. **Requires** `WORKFLOW_CREATE` (team "
+        '`editor` or `admin`, or org super-admin). Body: `{ "name": "..." }`.'
+    ),
 )
 async def create_workflow(
     team_id: UUID,
@@ -98,7 +103,16 @@ async def create_workflow(
     return WorkflowRead.model_validate(row)
 
 
-@router.get("/workflows", response_model=WorkflowPage)
+@router.get(
+    "/workflows",
+    response_model=WorkflowPage,
+    summary="List workflows I can access",
+    description=(
+        "Lists workflows the caller may view, decided **per row** by the policy "
+        "engine (SQL pre-filter, then authorize_batch). A viewer sees only their "
+        "team's workflows; a super-admin sees the whole org. Cursor-paginated."
+    ),
+)
 async def list_workflows(
     request: Request,
     principal: Principal = Depends(get_principal),
@@ -190,7 +204,15 @@ async def list_workflows(
     )
 
 
-@router.get("/workflows/{workflow_id}", response_model=WorkflowRead)
+@router.get(
+    "/workflows/{workflow_id}",
+    response_model=WorkflowRead,
+    summary="Get one workflow",
+    description=(
+        "Returns a single workflow. **Requires** `WORKFLOW_VIEW`. Returns **404** "
+        "(not 403) if the workflow is not visible to the caller — existence is hidden."
+    ),
+)
 async def get_workflow(
     workflow_id: UUID,
     _: Authorized = Depends(requires(Action.WORKFLOW_VIEW, Resource.workflow())),
@@ -203,7 +225,15 @@ async def get_workflow(
     return WorkflowRead.model_validate(row)
 
 
-@router.put("/workflows/{workflow_id}", response_model=WorkflowRead)
+@router.put(
+    "/workflows/{workflow_id}",
+    response_model=WorkflowRead,
+    summary="Update a workflow",
+    description=(
+        "Edits a workflow. **Requires** `WORKFLOW_UPDATE` (editor+). A viewer gets "
+        "**403**; a workflow in another team/org gets **404**."
+    ),
+)
 async def update_workflow(
     workflow_id: UUID,
     body: WorkflowUpdate,
@@ -225,6 +255,12 @@ async def update_workflow(
     "/workflows/{workflow_id}/executions",
     status_code=status.HTTP_201_CREATED,
     response_model=WorkflowExecutionRead,
+    summary="Run a workflow (authenticated)",
+    description=(
+        "Executes a workflow as a logged-in user. **Requires** `WORKFLOW_RUN` "
+        "(viewer+). Response is a canned execution record — no execution engine is "
+        "in scope. For unauthenticated/external runs use the Publishing group."
+    ),
 )
 async def run_workflow(
     workflow_id: UUID,
@@ -237,7 +273,17 @@ async def run_workflow(
     )
 
 
-@router.put("/workflows/{workflow_id}/export", response_model=WorkflowExportRead)
+@router.put(
+    "/workflows/{workflow_id}/export",
+    response_model=WorkflowExportRead,
+    tags=["4 · Publishing & external access"],
+    summary="Publish (export) a workflow",
+    description=(
+        "Makes a workflow runnable by external/unauthenticated users. **Requires** "
+        "`WORKFLOW_EXPORT` (editor+). `visibility`: `public` (anyone) or `org_only` "
+        "(only org members may run it)."
+    ),
+)
 async def set_workflow_export(
     workflow_id: UUID,
     body: WorkflowExportUpdate,
@@ -265,7 +311,16 @@ async def set_workflow_export(
     )
 
 
-@router.delete("/workflows/{workflow_id}/export", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/workflows/{workflow_id}/export",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["4 · Publishing & external access"],
+    summary="Unpublish a workflow",
+    description=(
+        "Stops external access (sets `is_exported=false`). **Requires** "
+        "`WORKFLOW_EXPORT`. Any password/visibility is preserved for re-publishing."
+    ),
+)
 async def unset_workflow_export(
     workflow_id: UUID,
     _: Authorized = Depends(requires(Action.WORKFLOW_EXPORT, Resource.workflow())),
@@ -279,7 +334,16 @@ async def unset_workflow_export(
 
 
 @router.put(
-    "/workflows/{workflow_id}/export/protection", response_model=WorkflowExportProtectionRead
+    "/workflows/{workflow_id}/export/protection",
+    response_model=WorkflowExportProtectionRead,
+    tags=["4 · Publishing & external access"],
+    summary="Set or clear an export password",
+    description=(
+        "Password-protects a published workflow (extra point 3). **Requires** "
+        "`WORKFLOW_PROTECT_EXPORT` (team admin). A null/absent `password` clears it. "
+        "The plaintext is argon2-hashed; only the derived `password_protected` flag "
+        "reaches the policy engine."
+    ),
 )
 async def set_workflow_export_protection(
     workflow_id: UUID,

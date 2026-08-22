@@ -22,7 +22,7 @@ from app.domain.models import RoleCreate, RoleRead
 from app.infra.client import get_supabase
 from supabase import Client
 
-router = APIRouter(prefix="/v1", tags=["roles"])
+router = APIRouter(prefix="/v1", tags=["6 · Roles (roles-as-data)"])
 
 Row = dict[str, Any]
 
@@ -43,6 +43,13 @@ def _validate_capabilities(names: list[str]) -> None:
     "/orgs/{org_id}/roles",
     status_code=status.HTTP_201_CREATED,
     response_model=RoleRead,
+    summary="Create a custom role from existing capabilities",
+    description=(
+        "Demonstrates *adding a role is data, not code*: a new role is a row that "
+        "composes already-seeded capabilities. **Requires** `ROLE_CREATE` (super-admin). "
+        "Naming a capability that isn't seeded returns **422** — roles can never "
+        "invent new security surface."
+    ),
 )
 async def create_role(
     org_id: UUID,
