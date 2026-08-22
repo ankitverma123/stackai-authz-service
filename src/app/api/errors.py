@@ -90,6 +90,18 @@ def problem_response(
     return JSONResponse(status_code=status, content=body, media_type="application/problem+json")
 
 
+def _carry_audit_tasks(request: Request, response: JSONResponse) -> JSONResponse:
+    """Reattach the audit BackgroundTasks that `requires()` queued before it raised.
+
+    A response built by an exception handler carries no background tasks by default,
+    so the Deny/EngineError/not-visible audit writes would be dropped — see the note
+    in app/api/deps.py's requires()."""
+    tasks = getattr(request.state, "audit_tasks", None)
+    if tasks is not None:
+        response.background = tasks
+    return response
+
+
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AuthzDenied)
     async def _denied(request: Request, exc: AuthzDenied) -> JSONResponse:
@@ -106,11 +118,14 @@ def install_error_handlers(app: FastAPI) -> None:
                 "resource": exc.resource,
             },
         )
-        return problem_response(
-            status=403,
-            title="Forbidden",
-            detail="You do not have permission to perform this action.",
-            correlation_id=cid,
+        return _carry_audit_tasks(
+            request,
+            problem_response(
+                status=403,
+                title="Forbidden",
+                detail="You do not have permission to perform this action.",
+                correlation_id=cid,
+            ),
         )
 
     @app.exception_handler(ResourceNotVisible)
@@ -118,22 +133,28 @@ def install_error_handlers(app: FastAPI) -> None:
         # 404 rather than 403: a 403 would confirm the resource exists.
         cid = getattr(request.state, "correlation_id", None) or str(uuid.uuid4())
         logger.warning("resource not visible", extra={"correlation_id": cid})
-        return problem_response(
-            status=404,
-            title="Not Found",
-            detail="Resource not found.",
-            correlation_id=cid,
+        return _carry_audit_tasks(
+            request,
+            problem_response(
+                status=404,
+                title="Not Found",
+                detail="Resource not found.",
+                correlation_id=cid,
+            ),
         )
 
     @app.exception_handler(AuthzEngineError)
     async def _engine_error(request: Request, exc: AuthzEngineError) -> JSONResponse:
         cid = getattr(request.state, "correlation_id", None) or str(uuid.uuid4())
         logger.error("authz engine error", extra={"correlation_id": cid, "detail": str(exc)})
-        return problem_response(
-            status=500,
-            title="Internal Server Error",
-            detail="The authorization engine could not evaluate this request.",
-            correlation_id=cid,
+        return _carry_audit_tasks(
+            request,
+            problem_response(
+                status=500,
+                title="Internal Server Error",
+                detail="The authorization engine could not evaluate this request.",
+                correlation_id=cid,
+            ),
         )
 
     @app.exception_handler(InvariantViolation)

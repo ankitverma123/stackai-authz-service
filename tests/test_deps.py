@@ -48,6 +48,30 @@ def test_denied_request_returns_403_without_policy_id(app_with_denied_engine: Fa
     assert "api-key-no-governance" not in response.text
 
 
+def test_denied_request_is_audited(app_with_denied_engine: FastAPI) -> None:
+    """A Deny must leave an audit trail — "probing another org leaves a trace even
+    though the client only ever sees a 404/403". `requires()` queues that write on
+    BackgroundTasks and then raises; if the raise drops the queued task, denials
+    (and engine-error 500s, and not-visible 404s) are never recorded and only the
+    Allow path is audited."""
+    from app.api.deps import get_audit_writer
+
+    recorded: list[dict[str, object]] = []
+
+    class RecordingWriter:
+        def record(self, **kwargs: object) -> None:
+            recorded.append(kwargs)
+
+    app_with_denied_engine.dependency_overrides[get_audit_writer] = lambda: RecordingWriter()
+    client = TestClient(app_with_denied_engine, raise_server_exceptions=False)
+
+    response = client.get("/guarded/org-1")
+
+    assert response.status_code == 403
+    assert len(recorded) == 1
+    assert recorded[0]["decision"].allowed is False  # type: ignore[attr-defined]
+
+
 def test_engine_error_returns_500_not_403(app_with_erroring_engine: FastAPI) -> None:
     """D6. A schema bug must never masquerade as a legitimate permission denial,
     and an errored forbid must never surface as a quiet allow."""

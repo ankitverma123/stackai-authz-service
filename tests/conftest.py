@@ -20,6 +20,7 @@ from app.api.deps import (
     VISIBILITY_ACTION,
     Authorized,
     Resource,
+    get_audit_writer,
     get_engine,
     get_entity_provider,
     requires,
@@ -79,6 +80,15 @@ class StubProvider:
         return EntitySlice(principal=PrincipalEntity(ref=principal), resources=entities, caps=())
 
 
+class _NoopAuditWriter:
+    """Keeps requires() off the real Supabase client. Now that the Deny/EngineError/
+    not-visible paths actually run their queued audit write (they used to be silently
+    dropped), a real AuditWriter here would construct a live client and do I/O."""
+
+    def record(self, **_: object) -> None:
+        pass
+
+
 def _app(decision: Decision) -> FastAPI:
     app = FastAPI()
     install_error_handlers(app)
@@ -92,6 +102,7 @@ def _app(decision: Decision) -> FastAPI:
 
     app.dependency_overrides[get_engine] = lambda: StubEngine(decision)
     app.dependency_overrides[get_entity_provider] = lambda: StubProvider()
+    app.dependency_overrides[get_audit_writer] = lambda: _NoopAuditWriter()
     return app
 
 
