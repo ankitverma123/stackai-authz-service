@@ -143,7 +143,11 @@ def get_authenticator() -> AuthenticatorChain:
     settings = get_settings()
     return AuthenticatorChain(
         [
-            JWTAuthenticator(secret=settings.supabase_jwt_secret, audience=settings.jwt_audience),
+            JWTAuthenticator(
+                secret=settings.supabase_jwt_secret,
+                jwks_url=settings.supabase_jwks_url,
+                audience=settings.jwt_audience,
+            ),
             # Ahead of Anonymous, behind JWT: an x-api-key header is a credential
             # presentation like a Bearer token, so it must get its own chance before
             # anything falls through to anonymous. ApiKeyAuthenticator.authenticate()
