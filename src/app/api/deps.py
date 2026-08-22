@@ -230,6 +230,15 @@ def requires(action: Action, resource_spec: ResourceSpec) -> Callable[..., Await
         cid = str(uuid.uuid4())
         request.state.correlation_id = cid
 
+        # Audit writes are queued on BackgroundTasks so a slow/failing write never
+        # touches the request path. But when this dependency raises (403/404/500),
+        # FastAPI builds the error response in app/api/errors.py, NOT from an
+        # endpoint return, so those queued tasks are never attached and the write is
+        # silently dropped — exactly for the Deny/EngineError/not-visible cases that
+        # must leave a trace. Stash the task container so those handlers can reattach
+        # it. The Allow path still attaches via the normal endpoint response.
+        request.state.audit_tasks = background_tasks
+
         resource = resource_spec.resolve(request)
         slice_ = await provider.slice_for(principal.ref, (resource,))
 
