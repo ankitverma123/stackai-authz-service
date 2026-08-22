@@ -8,12 +8,17 @@ policy engine packaged separately from the HTTP service so it is reusable outsid
 ## Quickstart
 
 ```bash
-cp .env.example .env                    # fill SUPABASE_* from `supabase status` after starting it
+cp .env.example .env                    # fill SUPABASE_* from `supabase status -o env` after starting it
 supabase start                          # local Postgres + GoTrue + PostgREST (not in docker-compose)
-supabase db push                        # applies supabase/migrations/* — schema, triggers, seed data
+supabase db push                        # applies supabase/migrations/* — schema, triggers, seed data, service_role grants
 docker compose up -d --build
 curl -fsS localhost:8000/health         # {"status": "ok"}
 ```
+
+Supabase signs user access tokens with **ES256** (asymmetric), so `.env`'s `SUPABASE_JWKS_URL` must
+point at `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` (preset in `.env.example`) or real tokens
+will not verify. `supabase db push` also applies the `service_role` table grants
+(`20260820000500_service_role_grants.sql`); without them every query fails with `permission denied`.
 
 `docker compose up` runs the API container only — local Supabase is a separate process started by
 the Supabase CLI (`supabase start`), which is how `supabase/config.toml` and the migrations are
@@ -25,11 +30,15 @@ organization membership directly:
 
 ```bash
 curl -s "$SUPABASE_URL/auth/v1/signup" -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-  -d '{"email":"demo@example.com","password":"correct-horse-battery"}'
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@example.com","password":"correct-horse-battery"}'   # signup auto-creates the profiles row
 # then, against the local Postgres:
 #   insert into organizations (id, name) values ('...', 'Demo Org');
 #   insert into org_memberships (org_id, user_id, role_id)
 #     values ('...', '<the new user id>', '00000000-0000-0000-0000-000000000002'); -- super_admin
+# get a token for requests (grant_type=password returns an ES256 access_token):
+#   curl "$SUPABASE_URL/auth/v1/token?grant_type=password" -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+#     -H "Content-Type: application/json" -d '{"email":"demo@example.com","password":"correct-horse-battery"}'
 ```
 
 For the non-HTTP reusability proof (dev/demo only — not shipped in the production image):
