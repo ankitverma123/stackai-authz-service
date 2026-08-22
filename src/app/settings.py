@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     supabase_url: str = Field(alias="SUPABASE_URL")
     supabase_service_role_key: str = Field(alias="SUPABASE_SERVICE_ROLE_KEY")
     supabase_jwt_secret: str = Field(alias="SUPABASE_JWT_SECRET")
+    #: When set, user JWTs are verified against this JWKS (RS256/ES256) instead of
+    #: the HS256 shared secret. Supabase now signs access tokens asymmetrically by
+    #: default; point this at `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`.
+    supabase_jwks_url: str | None = Field(default=None, alias="SUPABASE_JWKS_URL")
     workflow_access_token_secret: str = Field(alias="WORKFLOW_ACCESS_TOKEN_SECRET")
     workflow_access_token_ttl_seconds: int = 300
     jwt_audience: str = "authenticated"
