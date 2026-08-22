@@ -7,6 +7,7 @@ Two invariants this file exists to uphold:
      presence — the hash itself stays in the app.
 """
 
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -76,6 +77,18 @@ class SupabaseEntityProvider:
         visibility check and an action check share one fetch."""
         if user_id in self._memo:
             return self._memo[user_id]
+
+        # An anonymous principal's subject is the sentinel string "anonymous", not a
+        # uuid. Membership columns are uuid-typed, so querying them with it raises
+        # Postgres 22P02 -> 500 on every anonymous request, including the public
+        # workflow-run. A non-uuid subject has no memberships by construction, so the
+        # slice is empty; short-circuit before touching the database.
+        try:
+            uuid.UUID(user_id)
+        except ValueError:
+            empty = CapabilitySlice()
+            self._memo[user_id] = empty
+            return empty
 
         team_rows = cast(
             list[Row],

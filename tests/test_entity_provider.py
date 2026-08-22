@@ -30,6 +30,22 @@ class FakeClient:
         return FakeTable(self._tables.get(name, []))
 
 
+async def test_capability_slice_empty_for_anonymous_subject_without_querying() -> None:
+    """The anonymous principal's subject is the non-UUID string "anonymous".
+    Querying the uuid membership columns with it raises Postgres 22P02, which
+    surfaces as a 500 on every anonymous request — including the public
+    workflow-run. Anonymous callers have no memberships, so the slice must be
+    empty and no query may be issued."""
+
+    class ExplodingClient:
+        def table(self, name: str) -> object:
+            raise AssertionError(f"must not query {name!r} for a non-UUID subject")
+
+    provider = SupabaseEntityProvider(ExplodingClient())  # type: ignore[arg-type]
+    result = await provider.capability_slice("anonymous")
+    assert result == CapabilitySlice()
+
+
 async def test_workflow_without_export_row_gets_defaults() -> None:
     """A workflow with no workflow_exports row must still emit exported/visibility/
     password_protected. Omitting them makes `must-be-exported` error and be SKIPPED,
@@ -104,7 +120,7 @@ async def test_capability_slice_parses_nested_membership_rows() -> None:
     )
     provider = SupabaseEntityProvider(client)  # type: ignore[arg-type]
 
-    slice_ = await provider.capability_slice("u1")
+    slice_ = await provider.capability_slice("11111111-1111-1111-1111-111111111111")
 
     assert slice_.team_caps == {"team-1": {Capability.VIEW, Capability.RUN}}
     assert slice_.org_caps == {"org-1": {Capability.MANAGE_ORG}}
@@ -150,7 +166,8 @@ async def test_slice_for_batches_and_builds_entities() -> None:
     provider = SupabaseEntityProvider(client)  # type: ignore[arg-type]
 
     entity_slice = await provider.slice_for(
-        EntityRef("User", "u1"), (EntityRef("Workflow", "wf-1"), EntityRef("Team", "team-1"))
+        EntityRef("User", "11111111-1111-1111-1111-111111111111"),
+        (EntityRef("Workflow", "wf-1"), EntityRef("Team", "team-1")),
     )
 
     workflows = [r for r in entity_slice.resources if isinstance(r, WorkflowEntity)]
