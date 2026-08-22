@@ -1,6 +1,8 @@
 # ── Internal working material — stays local, never shipped ──────────────
 interviewAssignment.md
 jobdescription.md
+# Only the superpowers subtree is internal. docs/diagrams/ is a DELIVERABLE
+# (spec §15) — ignoring docs/ wholesale would silently drop it from the repo.
 docs/superpowers/
 
 # ── Agent tooling — unrelated to the deliverable ────────────────────────
