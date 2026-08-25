@@ -10,7 +10,7 @@ policy engine packaged separately from the HTTP service so it is reusable outsid
 ```bash
 cp .env.example .env                    # fill SUPABASE_* from `supabase status -o env` after starting it
 supabase start                          # local Postgres + GoTrue + PostgREST (not in docker-compose)
-supabase db push                        # applies supabase/migrations/* — schema, triggers, seed data, service_role grants
+supabase db reset                        # applies supabase/migrations/* — schema, triggers, seed data, service_role grants
 docker compose up -d --build
 curl -fsS localhost:8000/health         # {"status": "ok"}
 ```
