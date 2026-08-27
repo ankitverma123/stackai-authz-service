@@ -8,7 +8,8 @@ policy engine packaged separately from the HTTP service so it is reusable outsid
 ## Quickstart
 
 ```bash
-cp .env.example .env                    # fill SUPABASE_* from `supabase status -o env` after starting it
+cp .env.example .env                    # fill SUPABASE_* from `supabase status -o env` after starting it;
+                                        # WORKFLOW_ACCESS_TOKEN_SECRET is app-owned — set it to `openssl rand -hex 32`
 supabase start                          # local Postgres + GoTrue + PostgREST (not in docker-compose)
 supabase db reset                        # applies supabase/migrations/* — schema, triggers, seed data, service_role grants
 docker compose up -d --build
@@ -272,9 +273,7 @@ enrolled in it — the assignment's org-level shared team.
 **One-command demo.** `scripts/dev_seed.sh` does all of that idempotently — creates three users
 (super-admin, editor, viewer), seeds an org / two teams / two workflows, and prints a ready-to-use
 access token for each. Then open Swagger at **http://127.0.0.1:8000/docs**, click **Authorize**, paste
-a token, and call any endpoint from the UI. The endpoints are grouped and ordered as a walkthrough;
-[`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) is the api-by-api recording script (with the allow-vs-deny story
-and full assignment-coverage map).
+a token, and call any endpoint from the UI. 
 
 **Gotchas.**
 
